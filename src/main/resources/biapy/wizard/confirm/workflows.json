@@ -1,0 +1,201 @@
+{
+ "_comment": "Content of the dialog that asks to confirm the workflow chosen in the Wizard (question 2), and captions of the Wizard help images. 'captions' maps an image file (relative to biapy/wizard/) to its caption, used wherever the image appears. Each workflow has 'name', 'description' (HTML) and 'blocks' shown in order. A block is one of: {'text': HTML}, {'images': [{'file', optional 'caption'}], 'width'} (one row of images), {'note': HTML} or {'shared': key} (inserts the blocks of shared[key]). In any HTML, '{ref:key}' cites references[key]: it becomes a number like [1] and the reference is listed at the end. 'docs' is the link to the workflow's documentation.",
+ "references": {
+  "backova": "Backová, Lenka, et al. &quot;Modeling Wound Healing Using Vector Quantized Variational Autoencoders and Transformers.&quot; <i>2023 IEEE 20th International Symposium on Biomedical Imaging (ISBI)</i>. IEEE, 2023.",
+  "sheep": "Image adapted from <a href='https://manipulation.csail.mit.edu/segmentation.html'>https://manipulation.csail.mit.edu/segmentation.html</a>.",
+  "jukkala": "Jukkala &amp; Jacquemet, nuclei dataset, Zenodo: <a href='https://zenodo.org/records/3715492'>https://zenodo.org/records/3715492</a>.",
+  "convallaria": "Convallaria dataset: <a href='https://zenodo.org/record/5156913'>https://zenodo.org/record/5156913</a>.",
+  "biosr": "F-actin images of the BioSR dataset by Qiao et al.: <a href='https://figshare.com/articles/dataset/BioSR/13264793'>https://figshare.com/articles/dataset/BioSR/13264793</a>.",
+  "medmnist": "DermaMNIST dataset of MedMNIST v2: <a href='https://medmnist.com/'>https://medmnist.com/</a>.",
+  "lightmycells": "Light My Cells challenge dataset: <a href='https://lightmycells.grand-challenge.org/'>https://lightmycells.grand-challenge.org/</a>.",
+  "conic": "CoNIC challenge: <a href='https://conic-challenge.grand-challenge.org/'>https://conic-challenge.grand-challenge.org/</a>.",
+  "n2v": "Krull, Alexander, Tim-Oliver Buchholz, and Florian Jug. &quot;Noise2Void - Learning Denoising From Single Noisy Images.&quot; <i>Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)</i>, 2019."
+ },
+ "shared": {
+  "sem_inst_det": [
+   {
+    "note": "<b>Semantic segmentation, instance segmentation or detection?</b> Semantic segmentation gives all the objects of the same class the same label, so objects of the same class that touch or overlap <b>cannot be separated</b> from each other. If you need each object on its own, choose:<ul><li><i>Detection</i>, if you only need to <b>locate</b> the objects (e.g. to count them).</li><li><i>Instance segmentation</i>, if you also need a <b>mask of each object</b>, e.g. to measure its size or shape (morphological properties).</li></ul>"
+   },
+   {
+    "text": "The difference is easy to see in a natural image, processed here with each of the three workflows:"
+   },
+   {
+    "images": [
+     {
+      "file": "confirm/sem_inst_det_workflow_diff.jpg"
+     }
+    ],
+    "width": 560
+   }
+  ]
+ },
+ "workflows": {
+  "SEMANTIC_SEG": {
+   "name": "Semantic segmentation",
+   "description": "The goal of this workflow is to assign a <b>class to each pixel</b> (or voxel) of the input image, producing a label image with semantic masks. The simplest case is binary classification: only two labels are present in the label image, black pixels (usually with value 0) are the background and white pixels the foreground (usually labeled with 1 or 255).",
+   "blocks": [
+    {
+     "text": "These are a few examples of this workflow:"
+    },
+    {
+     "images": [
+      {
+       "file": "semantic_seg_collage.png"
+      }
+     ],
+     "width": 330
+    },
+    {
+     "images": [
+      {
+       "file": "confirm/semantic_seg_raw.png"
+      },
+      {
+       "file": "confirm/semantic_seg_gt.png"
+      }
+     ],
+     "width": 240
+    },
+    {
+     "shared": "sem_inst_det"
+    }
+   ],
+   "docs": "https://biapy.readthedocs.io/en/latest/workflows/semantic_segmentation.html"
+  },
+  "INSTANCE_SEG": {
+   "name": "Instance segmentation",
+   "description": "The goal of this workflow is to assign a <b>unique ID</b>, i.e. an integer value, <b>to each object</b> of the input image, producing a label image with instance masks. Each object gets its own value, even when it touches other objects of the same kind.",
+   "blocks": [
+    {
+     "text": "These are a few examples of this workflow:"
+    },
+    {
+     "images": [
+      {
+       "file": "instance_seg_collage.png"
+      }
+     ],
+     "width": 420
+    },
+    {
+     "images": [
+      {
+       "file": "confirm/instance_seg_multichannel.gif"
+      }
+     ],
+     "width": 420
+    },
+    {
+     "shared": "sem_inst_det"
+    }
+   ],
+   "docs": "https://biapy.readthedocs.io/en/latest/workflows/instance_segmentation.html"
+  },
+  "DETECTION": {
+   "name": "Detection",
+   "description": "The goal of this workflow is to <b>localize objects</b> in the input image, without a pixel-level mask. Common strategies produce either bounding boxes containing the objects or individual points at their center of mass, which is the one adopted by BiaPy.",
+   "blocks": [
+    {
+     "text": "This is an example of this workflow:"
+    },
+    {
+     "images": [
+      {
+       "file": "detection_collage.png"
+      }
+     ],
+     "width": 330
+    },
+    {
+     "shared": "sem_inst_det"
+    }
+   ],
+   "docs": "https://biapy.readthedocs.io/en/latest/workflows/detection.html"
+  },
+  "DENOISING": {
+   "name": "Denoising",
+   "description": "The goal of this workflow is to <b>remove noise</b> from the input images. BiaPy can learn it in two ways:<ul><li><b>Self-supervised</b>, with Noise2Void {ref:n2v}: only the noisy images are needed. This is very useful because clean images are frequently unavailable.</li><li><b>Supervised</b>, if you also have a clean (noise-free) version of each noisy image to use as target. The Wizard will ask you about it.</li></ul>",
+   "blocks": [
+    {
+     "text": "This is an example of this workflow:"
+    },
+    {
+     "images": [
+      {
+       "file": "denoising_collage.png"
+      }
+     ],
+     "width": 330
+    }
+   ],
+   "docs": "https://biapy.readthedocs.io/en/latest/workflows/denoising.html"
+  },
+  "SUPER_RESOLUTION": {
+   "name": "Super-resolution",
+   "description": "The goal of this workflow is to <b>reconstruct high-resolution (HR) images from low-resolution (LR) ones</b>. When the HR image is bigger than the LR one by a scale factor (x2, x4), the task is known as single-image super-resolution.",
+   "blocks": [
+    {
+     "text": "This is an example of this workflow:"
+    },
+    {
+     "images": [
+      {
+       "file": "sr_collage.png"
+      }
+     ],
+     "width": 330
+    }
+   ],
+   "docs": "https://biapy.readthedocs.io/en/latest/workflows/super_resolution.html"
+  },
+  "CLASSIFICATION": {
+   "name": "Classification",
+   "description": "The goal of this workflow is to <b>assign a label to each whole image</b>, not to its pixels.",
+   "blocks": [
+    {
+     "text": "This is an example of this workflow:"
+    },
+    {
+     "images": [
+      {
+       "file": "classification_collage.png"
+      }
+     ],
+     "width": 330
+    }
+   ],
+   "docs": "https://biapy.readthedocs.io/en/latest/workflows/classification.html"
+  },
+  "IMAGE_TO_IMAGE": {
+   "name": "Image to image",
+   "description": "The goal of this workflow is to <b>translate input images into target images</b> of the same size, e.g. to predict one imaging modality from another, like fluorescence from brightfield. It is like super-resolution but without upsampling (scale factor x1).",
+   "blocks": [
+    {
+     "text": "This is an example of this workflow:"
+    },
+    {
+     "images": [
+      {
+       "file": "i2i_collage.png"
+      }
+     ],
+     "width": 330
+    }
+   ],
+   "docs": "https://biapy.readthedocs.io/en/latest/workflows/image_to_image.html"
+  }
+ },
+ "captions": {
+  "semantic_seg_collage.png": "Left: confocal image of a <i>Drosophila</i> embryo recovering from a laser-incised wound (input). Right: its semantic mask, the contour of the wound {ref:backova}.",
+  "confirm/semantic_seg_raw.png": "Electron microscopy image (input).",
+  "confirm/semantic_seg_gt.png": "Its semantic mask: mitochondria (white, foreground) and background (black).",
+  "instance_seg_collage.png": "Left: electron microscopy image (input). Right: its instance mask, where each color is a different mitochondrion.",
+  "detection_collage.png": "Left: fluorescence microscopy image of nuclei (input). Right: the detected nuclei, each one marked with a red dot {ref:jukkala}.",
+  "denoising_collage.png": "Left: noisy fluorescence image (input). Right: its denoised version {ref:convallaria}{ref:n2v}.",
+  "sr_collage.png": "Left: low-resolution fluorescence image (input). Right: its high-resolution version, x2 {ref:biosr}.",
+  "classification_collage.png": "Dermatoscopic images of skin lesions, each one assigned to a class {ref:medmnist}.",
+  "i2i_collage.png": "Left: brightfield image (input). Right: the paired fluorescence image where the nuclei are highlighted (target) {ref:lightmycells}.",
+  "confirm/sem_inst_det_workflow_diff.jpg": "Top left: original image. <b>Semantic segmentation</b> (top right): one mask per class, dog (red) and sheep (blue); the three sheep merge into a single region. <b>Detection</b> (bottom left): each animal is located, here with a box (BiaPy marks the center of each object with a point instead), but its shape is not delineated. <b>Instance segmentation</b> (bottom right): each animal has its own mask, even where they overlap {ref:sheep}.",
+  "confirm/instance_seg_multichannel.gif": "Instances with classes. Left: histology image (input) from the CoNIC challenge {ref:conic}. Right, alternating: its label image with the instance masks (channel 0) and with the class of each instance (channel 1)."
+ }
+}

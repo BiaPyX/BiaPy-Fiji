@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>org.scijava</groupId>
+		<artifactId>pom-scijava</artifactId>
+		<version>44.0.0</version>
+		<relativePath />
+	</parent>
+
+	<groupId>io.github.biapyx</groupId>
+	<artifactId>biapy-fiji</artifactId>
+	<version>0.1.0-SNAPSHOT</version>
+
+	<name>BiaPy for Fiji</name>
+	<description>Fiji plugin to run BiaPy deep-learning bioimage analysis workflows</description>
+	<url>https://github.com/BiaPyX/BiaPy-Fiji</url>
+	<inceptionYear>2026</inceptionYear>
+	<organization>
+		<name>BiaPy</name>
+		<url>https://biapyx.github.io</url>
+	</organization>
+	<licenses>
+		<license>
+			<name>MIT License</name>
+			<url>https://opensource.org/licenses/MIT</url>
+			<distribution>repo</distribution>
+		</license>
+	</licenses>
+
+	<developers>
+		<developer>
+			<id>danifranco</id>
+			<name>Daniel Franco-Barranco</name>
+			<roles>
+				<role>founder</role>
+				<role>lead</role>
+				<role>developer</role>
+				<role>debugger</role>
+				<role>reviewer</role>
+				<role>support</role>
+				<role>maintainer</role>
+			</roles>
+		</developer>
+	</developers>
+	<contributors>
+		<contributor>
+			<name>None</name>
+		</contributor>
+	</contributors>
+
+	<mailingLists>
+		<mailingList>
+			<name>Image.sc Forum</name>
+			<archive>https://forum.image.sc/tag/biapy</archive>
+		</mailingList>
+	</mailingLists>
+
+	<scm>
+		<connection>scm:git:https://github.com/BiaPyX/BiaPy-Fiji</connection>
+		<developerConnection>scm:git:git@github.com:BiaPyX/BiaPy-Fiji</developerConnection>
+		<tag>HEAD</tag>
+		<url>https://github.com/BiaPyX/BiaPy-Fiji</url>
+	</scm>
+	<issueManagement>
+		<system>GitHub Issues</system>
+		<url>https://github.com/BiaPyX/BiaPy-Fiji/issues</url>
+	</issueManagement>
+	<ciManagement>
+		<system>GitHub Actions</system>
+		<url>https://github.com/BiaPyX/BiaPy-Fiji/actions</url>
+	</ciManagement>
+
+	<properties>
+		<package-name>io.github.biapyx.fiji</package-name>
+		<license.licenseName>mit</license.licenseName>
+		<license.copyrightOwners>BiaPy developers.</license.copyrightOwners>
+		<license.projectName>BiaPy for Fiji</license.projectName>
+
+		<releaseProfiles>sign,deploy-to-scijava</releaseProfiles>
+		<dl-modelrunner.version>0.6.3</dl-modelrunner.version>
+	</properties>
+
+	<repositories>
+		<repository>
+			<id>scijava.public</id>
+			<url>https://maven.scijava.org/content/groups/public</url>
+		</repository>
+	</repositories>
+
+	<dependencies>
+		<dependency>
+			<groupId>net.imagej</groupId>
+			<artifactId>ij</artifactId>
+		</dependency>
+		<!-- Provides Mamba (micromamba installer/env manager), the same machinery SAMJ uses -->
+		<dependency>
+			<groupId>io.bioimage</groupId>
+			<artifactId>dl-modelrunner</artifactId>
+			<version>${dl-modelrunner.version}</version>
+		</dependency>
+		<!-- Extracts micromamba when it comes as a .tar.bz2 -->
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-compress</artifactId>
+		</dependency>
+		<!-- Reads the configuration files to summarise each run -->
+		<dependency>
+			<groupId>org.yaml</groupId>
+			<artifactId>snakeyaml</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.google.code.gson</groupId>
+			<artifactId>gson</artifactId>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<resources>
+			<resource>
+				<directory>src/main/resources</directory>
+				<filtering>false</filtering>
+				<excludes>
+					<exclude>biapy/biapy-fiji.properties</exclude>
+				</excludes>
+			</resource>
+			<resource>
+				<directory>src/main/resources</directory>
+				<filtering>true</filtering>
+				<includes>
+					<include>biapy/biapy-fiji.properties</include>
+				</includes>
+			</resource>
+		</resources>
+	</build>
+</project>
