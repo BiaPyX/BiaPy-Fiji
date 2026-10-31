@@ -187,61 +187,48 @@ def cmd_preview_data(args):
 
 def cmd_find_models(args):
     """
-    Like BiaPy-GUI check_models_from_other_sources_engine.run() but only for the BioImage Model Zoo
-    (Torchvision models are left out on purpose). Models are checked in parallel, as most of the time
-    is spent waiting for the network, and each compatible one is printed as soon as it is found:
+    The models of the BioImage Model Zoo that BiaPy can use for the workflow, from BiaPy's own search
+    (biapy.models.bmz_search, shared with BiaPy's notebooks; Torchvision models are left out on purpose). Each
+    compatible one is printed as soon as it is found:
         MODEL_PROGRESS:<checked> <total>
         MODEL_FOUND:<json>
     """
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-
-    from biapy.models import check_bmz_model_compatibility, find_bmz_models
+    try:
+        from biapy.models.bmz_search import list_compatible_bmz_models
+    except ImportError:
+        raise RuntimeError(
+            "This BiaPy version can't search the BioImage Model Zoo from the plugin: please update BiaPy "
+            "('Reinstall BiaPy' in the HOME tab)."
+        )
     from biapy.wizard.config_builder import to_jsonable
 
-    workflow_specs = {"workflow_type": args["workflow"], "ndim": args["ndim"], "nclasses": "all"}
+    def entry(info):
+        # BiaPy loads Model Zoo models by their nickname (e.g. "wild-whale"), which is the "id" that goes to
+        # MODEL.BMZ.SOURCE_MODEL_ID; "name" is only shown to the user
+        out = {k: v for k, v in info.items() if k != "opts"}
+        out["source"] = "BioImage Model Zoo"
+        out["imposed_vars"] = to_jsonable(info["opts"])
+        return out
+
+    # The search hides what is printed meanwhile (quiet): the download bars of bioimageio, on the same stream for
+    # the plugin, put escape codes before some lines, which were then missed. These lines go to the real stdout.
+    out = sys.stdout
+
+    def emit(line):
+        out.write(line + "\n")
+        out.flush()
+
+    def checked(done, total, info, nickname, reason):
+        if info is None:
+            emit("  {}: not compatible ({})".format(nickname, reason))
+        else:
+            emit("MODEL_FOUND:" + json.dumps(entry(info)))
+        emit("MODEL_PROGRESS:{} {}".format(done, total))
+
     log("Getting the list of models from the BioImage Model Zoo . . .")
-    models = find_bmz_models()
-    total = len(models)
-    log("MODEL_PROGRESS:0 {}".format(total))
-
-    def check(model):
-        nickname = model.get("nickname", model.get("alias", "Nick not found"))
-        try:
-            compat = check_bmz_model_compatibility(model, workflow_specs=workflow_specs)
-            return model, nickname, compat["error"], compat["reason_message"], compat["opts"]
-        except Exception as e:
-            return model, nickname, True, str(e), {}
-
-    out = []
-    with ThreadPoolExecutor(max_workers=8) as pool:
-        futures = [pool.submit(check, m) for m in models]
-        for done, fut in enumerate(as_completed(futures), start=1):
-            model, nickname, error, error_message, imposed = fut.result()
-            if error:
-                log("  {}: not compatible ({})".format(nickname, str(error_message).strip()))
-            else:
-                manifest = model["raw"]["manifest"]
-                covers = manifest.get("covers") or []
-                info = {
-                    # BiaPy loads Model Zoo models by their nickname (e.g. "wild-whale"), which is what
-                    # goes to MODEL.BMZ.SOURCE_MODEL_ID; "name" is only shown to the user
-                    "id": nickname,
-                    "name": manifest.get("name", ""),
-                    "nickname": nickname,
-                    "nickname_icon": manifest.get("id_emoji", ""),
-                    "source": "BioImage Model Zoo",
-                    "description": manifest.get("description", ""),
-                    "cover": "https://hypha.aicell.io/bioimage-io/artifacts/{}/files/{}".format(nickname, covers[0])
-                    if covers
-                    else "",
-                    "url": "https://bioimage.io/#/artifacts/{}".format(nickname),
-                    "imposed_vars": to_jsonable(imposed),
-                }
-                out.append(info)
-                log("MODEL_FOUND:" + json.dumps(info))
-            log("MODEL_PROGRESS:{} {}".format(done, total))
-    log("{} compatible models found".format(len(out)))
-    return {"models": out}
+    models = list_compatible_bmz_models(workflow=args["workflow"], ndim=args["ndim"], quiet=True, callback=checked)
+    log("{} compatible models found".format(len(models)))
+    return {"models": [entry(m) for m in models]}
 
 
 def supported_answers(answers):

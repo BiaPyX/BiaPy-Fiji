@@ -761,8 +761,18 @@ public class WizardPanel extends JPanel {
 			cards.setBorder(BorderFactory.createTitledBorder("Compatible pretrained models from the BioImage Model Zoo"));
 			p.add(cards, BorderLayout.CENTER);
 			// Keep the models found while the workflow and dimensions stay the same
-			if (modelsKey().equals(foundModelsKey))
-				for (JsonObject m : foundModels) cards.add(modelCard(m, q, field, cards));
+			if (modelsKey().equals(foundModelsKey)) fillModelCards(q, field, cards);
+			// The descriptions are wrapped to the width of the list: rebuild them when it changes
+			cards.addComponentListener(new java.awt.event.ComponentAdapter() {
+				private int lastWidth = -1;
+
+				@Override
+				public void componentResized(java.awt.event.ComponentEvent e) {
+					if (Math.abs(cards.getWidth() - lastWidth) < 8) return;
+					lastWidth = cards.getWidth();
+					if (modelsKey().equals(foundModelsKey)) fillModelCards(q, field, cards);
+				}
+			});
 			check.addActionListener(e -> findModels(q, field, cards));
 			// Coming from the reminder at the end of the questions: the search starts by itself
 			if (searchModelsOnShow) {
@@ -1024,15 +1034,15 @@ public class WizardPanel extends JPanel {
 		cards.repaint();
 		final String[] progress = { "" };
 		runBridge("Searching for compatible models . . .", "find_models", args, line -> {
-			// Models are shown as soon as Python finds them
-			if (line.startsWith("MODEL_FOUND:")) {
-				JsonObject m = com.google.gson.JsonParser.parseString(line.substring(12)).getAsJsonObject();
+			// Models are shown as soon as Python finds them. Anywhere in the line: other output (e.g. the escape codes of a
+			// progress bar) may come before
+			int found = line.indexOf("MODEL_FOUND:"), prog = line.indexOf("MODEL_PROGRESS:");
+			if (found >= 0) {
+				JsonObject m = com.google.gson.JsonParser.parseString(line.substring(found + 12)).getAsJsonObject();
 				foundModels.add(m);
-				cards.add(modelCard(m, q, field, cards));
-				cards.revalidate();
-				cards.repaint();
-			} else if (line.startsWith("MODEL_PROGRESS:")) {
-				String[] t = line.substring(15).trim().split(" ");
+				fillModelCards(q, field, cards);
+			} else if (prog >= 0) {
+				String[] t = line.substring(prog + 15).trim().split(" ");
 				progress[0] = t[0] + "/" + t[1] + " checked";
 			} else {
 				return;
@@ -1065,6 +1075,8 @@ public class WizardPanel extends JPanel {
 	}
 
 	private static final java.util.Map<String, ImageIcon> COVERS = new java.util.concurrent.ConcurrentHashMap<>();
+	/** Covers being downloaded and the labels waiting for each. */
+	private static final java.util.Map<String, List<JLabel>> COVERS_LOADING = new java.util.HashMap<>();
 	private static final java.util.concurrent.ExecutorService COVER_LOADER = java.util.concurrent.Executors
 			.newFixedThreadPool(4, r -> {
 				Thread t = new Thread(r, "BiaPy-cover-loader");
@@ -1091,8 +1103,6 @@ public class WizardPanel extends JPanel {
 		if (!coverUrl.isEmpty()) loadCover(coverUrl, cover);
 		card.add(cover, BorderLayout.WEST);
 
-		String desc = m.get("description").getAsString();
-		if (desc.length() > 120) desc = desc.substring(0, 117) + "...";
 		// "modest-cow 🐄": the emoji is an image (see EmojiIcons), most are missing in Java fonts
 		JPanel titleRow = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 0, 0));
 		titleRow.setOpaque(false);
@@ -1109,18 +1119,6 @@ public class WizardPanel extends JPanel {
 			sel.setForeground(BiaPyFiji.GREEN);
 			titleRow.add(sel);
 		}
-		JLabel text = new JLabel("<html><span style='color:#555555'>" + (m.has("name") ? m.get("name").getAsString() : "")
-				+ "</span><br>" + desc + "</html>");
-		text.setFont(text.getFont().deriveFont(Font.PLAIN, 12f));
-		text.setVerticalAlignment(JLabel.TOP);
-		// Let the text wrap to the available width
-		text.setPreferredSize(new Dimension(10, 58));
-		JPanel middle = new JPanel(new BorderLayout(0, 2));
-		middle.setOpaque(false);
-		middle.add(titleRow, BorderLayout.NORTH);
-		middle.add(text, BorderLayout.CENTER);
-		card.add(middle, BorderLayout.CENTER);
-
 		JPanel buttons = new JPanel(new java.awt.GridLayout(2, 1, 0, 4));
 		buttons.setOpaque(false);
 		JButton select = UiUtils.primaryButton("Select", "Use this model");
@@ -1131,10 +1129,7 @@ public class WizardPanel extends JPanel {
 			field.setText(model.getAnswered(q.index).toString());
 			rebuildToc();
 			// Redraw to mark the selected card
-			cards.removeAll();
-			for (JsonObject o : foundModels) cards.add(modelCard(o, q, field, cards));
-			cards.revalidate();
-			cards.repaint();
+			fillModelCards(q, field, cards);
 		});
 		JButton web = UiUtils.secondaryButton("BioImage.io \u2197", "Open the page of the model in the BioImage Model Zoo ("
 				+ m.get("url").getAsString() + ")");
@@ -1145,9 +1140,75 @@ public class WizardPanel extends JPanel {
 		east.setOpaque(false);
 		east.add(buttons, BorderLayout.NORTH);
 		card.add(east, BorderLayout.EAST);
+
+		// The whole description, wrapped to the width left by the cover and the buttons, and the representation below
+		String html = "<span style='color:#555555'>" + escape(m.has("name") ? m.get("name").getAsString() : "")
+				+ "</span><br>" + escape(m.get("description").getAsString());
+		String representation = representationLabel(m);
+		if (!representation.isEmpty()) html += "<br><b>Representation:</b> " + escape(representation);
+		java.awt.Insets in = cards.getInsets();
+		int textWidth = cardsTextWidth(cards, in.left + in.right + 12 + COVER_SIZE + 20 + east.getPreferredSize().width);
+		JLabel text = wrappedLabel(html, textWidth, new JLabel().getFont().deriveFont(Font.PLAIN, 12f));
+		JPanel middle = new JPanel(new BorderLayout(0, 2));
+		middle.setOpaque(false);
+		middle.add(titleRow, BorderLayout.NORTH);
+		middle.add(text, BorderLayout.CENTER);
+		card.add(middle, BorderLayout.CENTER);
 		card.setMaximumSize(new Dimension(Integer.MAX_VALUE, card.getPreferredSize().height));
 		card.setAlignmentX(Component.LEFT_ALIGNMENT);
 		return card;
+	}
+
+	/**
+	 * Instance representation of a model found, e.g. "Foreground + flows (Cellpose) (F, Gv, Gh)", or just its BiaPy
+	 * channels when it is not one of the Wizard's; empty in other workflows.
+	 */
+	private static String representationLabel(JsonObject m) {
+		if (!m.has("channels") || !m.get("channels").isJsonArray() || m.getAsJsonArray("channels").size() == 0) return "";
+		List<String> codes = new ArrayList<>();
+		for (JsonElement c : m.getAsJsonArray("channels")) codes.add(c.getAsString());
+		String name = m.has("representation") ? m.get("representation").getAsString() : "";
+		return name.isEmpty() ? "Channels " + String.join(", ", codes) : name + " (" + String.join(", ", codes) + ")";
+	}
+
+	/**
+	 * The models found, as cards. In instance segmentation they are grouped by representation (alphabetically, those
+	 * that are not one of the Wizard's representations last), each group under a header.
+	 */
+	private void fillModelCards(Question q, JTextField field, JPanel cards) {
+		cards.removeAll();
+		List<JsonObject> sorted = new ArrayList<>(foundModels);
+		java.util.Map<String, Integer> sizes = new java.util.HashMap<>();
+		for (JsonObject m : sorted) sizes.merge(representationLabel(m), 1, Integer::sum);
+		boolean grouped = sizes.keySet().stream().anyMatch(r -> !r.isEmpty());
+		sorted.sort(java.util.Comparator.comparing((JsonObject m) -> representationLabel(m).isEmpty())
+				.thenComparing(m -> !m.has("representation") || m.get("representation").getAsString().isEmpty())
+				.thenComparing(WizardPanel::representationLabel, String.CASE_INSENSITIVE_ORDER)
+				.thenComparing(m -> m.get("nickname").getAsString()));
+		String group = null;
+		for (JsonObject m : sorted) {
+			String r = representationLabel(m);
+			if (grouped && !r.equals(group)) {
+				group = r;
+				int n = sizes.get(r);
+				JLabel header = new JLabel((r.isEmpty() ? "Other" : r) + "  —  " + n + (n == 1 ? " model" : " models"));
+				header.setFont(header.getFont().deriveFont(Font.BOLD, 13f));
+				header.setForeground(BiaPyFiji.BLUE);
+				header.setBorder(BorderFactory.createCompoundBorder(
+						BorderFactory.createMatteBorder(0, 0, 2, 0, BiaPyFiji.LIGHT_BLUE),
+						BorderFactory.createEmptyBorder(cards.getComponentCount() == 0 ? 4 : 14, 6, 4, 6)));
+				header.setAlignmentX(Component.LEFT_ALIGNMENT);
+				header.setMaximumSize(new Dimension(Integer.MAX_VALUE, header.getPreferredSize().height));
+				cards.add(header);
+			}
+			cards.add(modelCard(m, q, field, cards));
+		}
+		cards.revalidate();
+		cards.repaint();
+	}
+
+	private static String escape(String s) {
+		return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>");
 	}
 
 	/** Downloads the cover image in the background (emoji icons are not available in Java fonts). */
@@ -1157,7 +1218,19 @@ public class WizardPanel extends JPanel {
 			target.setIcon(cached);
 			return;
 		}
+		// The cards are rebuilt as models are found: a cover being downloaded goes to every card waiting for it
+		synchronized (COVERS_LOADING) {
+			List<JLabel> waiting = COVERS_LOADING.get(url);
+			if (waiting != null) {
+				waiting.add(target);
+				return;
+			}
+			waiting = new ArrayList<>();
+			waiting.add(target);
+			COVERS_LOADING.put(url, waiting);
+		}
 		COVER_LOADER.submit(() -> {
+			ImageIcon loaded = null;
 			try {
 				java.net.URLConnection conn = new java.net.URL(url).openConnection();
 				conn.setConnectTimeout(10000);
@@ -1166,15 +1239,23 @@ public class WizardPanel extends JPanel {
 				try (java.io.InputStream in = conn.getInputStream()) {
 					img = javax.imageio.ImageIO.read(in);
 				}
-				if (img == null) return;
-				double scale = Math.min((double) COVER_SIZE / img.getWidth(), (double) COVER_SIZE / img.getHeight());
-				ImageIcon icon = new ImageIcon(img.getScaledInstance(Math.max(1, (int) (img.getWidth() * scale)),
-						Math.max(1, (int) (img.getHeight() * scale)), java.awt.Image.SCALE_SMOOTH));
-				COVERS.put(url, icon);
-				SwingUtilities.invokeLater(() -> target.setIcon(icon));
+				if (img != null) {
+					double scale = Math.min((double) COVER_SIZE / img.getWidth(), (double) COVER_SIZE / img.getHeight());
+					loaded = new ImageIcon(img.getScaledInstance(Math.max(1, (int) (img.getWidth() * scale)),
+							Math.max(1, (int) (img.getHeight() * scale)), java.awt.Image.SCALE_SMOOTH));
+					COVERS.put(url, loaded);
+				}
 			} catch (Exception e) {
 				// Keep the BioImage Model Zoo logo
 			}
+			List<JLabel> waiting;
+			synchronized (COVERS_LOADING) {
+				waiting = COVERS_LOADING.remove(url);
+			}
+			ImageIcon icon = loaded;
+			if (icon != null) SwingUtilities.invokeLater(() -> {
+				for (JLabel l : waiting) l.setIcon(icon);
+			});
 		});
 	}
 
