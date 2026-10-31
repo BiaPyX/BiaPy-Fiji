@@ -283,6 +283,8 @@ public class WizardModel {
 		JsonObject dc = answers.getAsJsonObject("data_constraints"), si = answers.getAsJsonObject("sample_info");
 		for (String other : DATA_KEYS) {
 			if (other.equals(key) || other.contains("GT_PATH") != target) continue;
+			// Targets read from the label images of the raw images' files are not those of the folder itself
+			if (target && !targetDataPath(other.split("\\.")[1]).isEmpty()) continue;
 			String checked = checkedFolder(other);
 			if (checked == null || !samePath(checked, folder) || !si.has(other)) continue;
 			JsonObject constraints = new JsonObject();
@@ -303,6 +305,31 @@ public class WizardModel {
 		} catch (java.io.IOException e) {
 			return new java.io.File(a).getAbsoluteFile().equals(new java.io.File(b).getAbsoluteFile());
 		}
+	}
+
+	/**
+	 * Label images (e.g. the ground truth) that all the OME-Zarr images checked for {@code key} (e.g.
+	 * "DATA.TRAIN.PATH") have, which can be used as their targets; empty if there are none.
+	 */
+	public List<String> omeZarrLabels(String key) {
+		List<String> names = new ArrayList<>();
+		if (!answers.has("sample_info")) return names;
+		JsonElement info = answers.getAsJsonObject("sample_info").get(key);
+		if (info == null || !info.isJsonObject() || !info.getAsJsonObject().has("ome_zarr_labels")) return names;
+		for (JsonElement e : info.getAsJsonObject().getAsJsonArray("ome_zarr_labels")) names.add(e.getAsString());
+		return names;
+	}
+
+	/**
+	 * Path within the Zarr files of the targets checked for {@code phase} ("TRAIN" or "TEST"), e.g. "labels.mito" when
+	 * they are label images of the raw OME-Zarr images; empty when they are files of their own.
+	 */
+	public String targetDataPath(String phase) {
+		if (!answers.has("data_constraints")) return "";
+		JsonObject dc = answers.getAsJsonObject("data_constraints");
+		String key = "DATA." + phase + ".INPUT_ZARR_MULTIPLE_DATA";
+		if (!dc.has(key) || !dc.get(key).getAsBoolean() || !dc.has(key + "_GT_PATH")) return "";
+		return dc.get(key + "_GT_PATH").getAsString();
 	}
 
 	/** Undoes the data check of the folder asked in question {@code qi} (e.g. the user wants another folder). */

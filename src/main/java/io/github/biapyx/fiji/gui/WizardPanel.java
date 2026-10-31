@@ -249,6 +249,7 @@ public class WizardPanel extends JPanel {
 			model.clear();
 			previews.clear();
 			confirmedWorkflow = null;
+			pretrainedSuggestedKey = null;
 			rebuildToc();
 			showQuestion(0);
 		});
@@ -323,8 +324,11 @@ public class WizardPanel extends JPanel {
 			readCurrentAnswer();
 			if (!confirmWorkflowOnLeave(false)) return; // the user wants to change the workflow
 			int next = model.nextIndex();
-			if (next >= model.size()) prepareSummary();
-			else showQuestion(next);
+			if (next >= model.size()) {
+				if (!suggestPretrainedModels()) prepareSummary();
+			} else {
+				showQuestion(next);
+			}
 		});
 		return p;
 	}
@@ -681,9 +685,13 @@ public class WizardPanel extends JPanel {
 		c.gridy = 2;
 		c.insets = new Insets(2, 0, 4, 0);
 		p.add(status, c);
+		String key = q.firstKey();
+		String phase = key.contains("TRAIN") ? "TRAIN" : "TEST";
 		Runnable refresh = () -> {
 			boolean ok = model.isDataChecked(q) && field.getText().trim().equals(model.getAnswered(q.index));
-			status.setText(ok ? "Data checked!" : "\u2191 Data not checked yet!");
+			String labels = key.contains("GT_PATH") ? model.targetDataPath(phase) : "";
+			status.setText(!ok ? "\u2191 Data not checked yet!"
+					: labels.isEmpty() ? "Data checked!" : "Data checked! (targets: '" + labels + "' of the OME-Zarr images)");
 			status.setForeground(ok ? BiaPyFiji.GREEN : BiaPyFiji.RED);
 		};
 		refresh.run();
@@ -692,7 +700,32 @@ public class WizardPanel extends JPanel {
 			File f = UiUtils.chooseDirectory(this, field.getText());
 			if (f != null) field.setText(f.getAbsolutePath());
 		});
-		check.addActionListener(e -> checkData(q, field.getText(), refresh));
+		check.addActionListener(e -> checkData(q, field.getText(), refresh, ""));
+		// Targets stored in the raw OME-Zarr images, as their label images (e.g. the ground truth)
+		String rawKey = "DATA." + phase + ".PATH";
+		String raw = model.checkedFolder(rawKey);
+		List<String> labels = key.contains("GT_PATH") ? model.omeZarrLabels(rawKey) : new ArrayList<>();
+		if (raw != null && !labels.isEmpty()) {
+			c.gridy = 3;
+			c.insets = new Insets(10, 0, 2, 0);
+			p.add(new JLabel("Or use as targets a label image stored in the raw OME-Zarr images:"), c);
+			JPanel row = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 0));
+			row.setOpaque(false);
+			javax.swing.JComboBox<String> names = new javax.swing.JComboBox<>(labels.toArray(new String[0]));
+			String current = model.targetDataPath(phase);
+			if (current.startsWith("labels.")) names.setSelectedItem(current.substring("labels.".length()));
+			row.add(names);
+			JButton use = UiUtils.secondaryButton("Use as targets",
+					"Check the label image chosen of each raw image as its target, instead of the images of a folder");
+			use.addActionListener(e -> {
+				field.setText(raw);
+				checkData(q, raw, refresh, "labels." + names.getSelectedItem());
+			});
+			row.add(use);
+			c.gridy = 4;
+			c.insets = new Insets(2, 0, 4, 0);
+			p.add(row, c);
+		}
 		return p;
 	}
 
@@ -731,14 +764,80 @@ public class WizardPanel extends JPanel {
 			if (modelsKey().equals(foundModelsKey))
 				for (JsonObject m : foundModels) cards.add(modelCard(m, q, field, cards));
 			check.addActionListener(e -> findModels(q, field, cards));
+			// Coming from the reminder at the end of the questions: the search starts by itself
+			if (searchModelsOnShow) {
+				searchModelsOnShow = false;
+				if (!modelsKey().equals(foundModelsKey)) SwingUtilities.invokeLater(() -> findModels(q, field, cards));
+			}
 		}
 		return p;
+	}
+
+	/** Workflow and dimensions ({@link #modelsKey()}) for which a pretrained model was already suggested, or null. */
+	private String pretrainedSuggestedKey = null;
+	/** The model question is shown from that suggestion: it starts the search. */
+	private boolean searchModelsOnShow = false;
+
+	/**
+	 * Once all questions are answered with a model built from scratch, a last reminder to look for a pretrained model
+	 * in the BioImage Model Zoo (e.g. Cellpose-SAM for 2D instance segmentation): used as is or fine-tuned, it needs
+	 * far less data and training. Asked once per workflow and dimensions, and not when a search found none.
+	 *
+	 * @return true if the user went to look for one (the model question is then shown and searching)
+	 */
+	private boolean suggestPretrainedModels() {
+		// The UI tests accept every confirmation, which would take them to the search
+		if (java.awt.GraphicsEnvironment.isHeadless()) return false;
+		int source = model.questionFor("MODEL.SOURCE");
+		int select = model.questionFor("MODEL.BMZ.SOURCE_MODEL_ID");
+		if (source < 0 || select < 0 || !"biapy".equals(model.getAnswer("MODEL.SOURCE").getAsString())
+				|| !"false".equals(model.getAnswer("MODEL.LOAD_CHECKPOINT").getAsString()))
+			return false;
+		String key = modelsKey();
+		if (key.equals(pretrainedSuggestedKey)) return false;
+		pretrainedSuggestedKey = key;
+		int bmz = -1;
+		com.google.gson.JsonArray sources = model.getQuestion(source).map.getAsJsonArray("MODEL.SOURCE");
+		for (int i = 0; i < sources.size() && bmz < 0; i++) if ("bmz".equals(sources.get(i).getAsString())) bmz = i;
+		if (bmz < 0) return false;
+
+		String html = pretrainedSuggestionHtml(model.getAnswer("PROBLEM.TYPE").getAsString(),
+				model.getAnswer("PROBLEM.NDIM").getAsString());
+		if (!UiUtils.confirmHtml(this, "BiaPy Wizard - Pretrained models", html, "Look for pretrained models",
+				"Continue from scratch"))
+			return false;
+		model.setChoice(source, bmz);
+		rebuildToc();
+		searchModelsOnShow = true;
+		showQuestion(select);
+		return true;
+	}
+
+	/** Message of {@link #suggestPretrainedModels()} for the workflow (PROBLEM.TYPE) and dimensions ("2D"/"3D"). */
+	static String pretrainedSuggestionHtml(String workflow, String ndim) {
+		StringBuilder html = new StringBuilder("<div style='width:440px'>");
+		html.append("<h1>Is there a pretrained model you could start from?</h1>")
+				.append("<p>You chose to build the model from scratch. The BioImage Model Zoo has pretrained models that ")
+				.append("BiaPy can use as they are or fine-tune with your data, which usually needs far fewer annotated ")
+				.append("images and much less training time than starting from scratch.</p>");
+		if ("INSTANCE_SEG".equals(workflow) && "2D".equals(ndim))
+			html.append("<p>For example, the Zoo has the <b>Cellpose-SAM</b> and <b>Cellpose-DINO</b> generalist models ")
+					.append("to segment cells and nuclei, and fine-tuning a Cellpose model on one's own images is a common ")
+					.append("way to get good results quickly.</p>");
+		html.append("<p>Do you want to look for models that fit your workflow and dimensions now? It needs an internet ")
+				.append("connection and may take a while. Your other answers are kept.</p></div>");
+		return UiUtils.htmlPage(html.toString());
 	}
 
 	///////////////////////////////
 	// Calls to the Python bridge
 	///////////////////////////////
-	private void checkData(Question q, String folder, Runnable onDone) {
+	/**
+	 * Checks the data of the folder answered in question {@code q}. {@code dataPath}: path of the targets within the
+	 * Zarr files of the folder (e.g. "labels.mito" for a label image of OME-Zarr images), empty for the files
+	 * themselves.
+	 */
+	private void checkData(Question q, String folder, Runnable onDone, String dataPath) {
 		folder = folder.trim();
 		if (folder.isEmpty() || !new File(folder).isDirectory()) {
 			UiUtils.error(this, "Please first select an existing folder to check.");
@@ -754,7 +853,7 @@ public class WizardPanel extends JPanel {
 		}
 		model.setPath(q.index, folder);
 		// The same folder already checked for another question (e.g. to train and to test): its check is reused
-		Object[] reuse = model.reusableCheck(q.index, folder);
+		Object[] reuse = dataPath.isEmpty() ? model.reusableCheck(q.index, folder) : null;
 		if (reuse != null) {
 			model.setDataChecked(q.index, (JsonObject) reuse[0], (JsonObject) reuse[1]);
 			rebuildToc();
@@ -768,6 +867,7 @@ public class WizardPanel extends JPanel {
 		args.addProperty("key", q.firstKey());
 		args.addProperty("workflow", model.getAnswer("PROBLEM.TYPE").getAsString());
 		args.addProperty("ndim", model.getAnswer("PROBLEM.NDIM").getAsString());
+		args.addProperty("data_path", dataPath);
 		boolean isTarget = q.firstKey().contains("GT_PATH");
 		boolean train = q.firstKey().contains("TRAIN");
 		String title = (train ? "Training" : "Test") + (isTarget ? " targets" : " data");
@@ -797,18 +897,39 @@ public class WizardPanel extends JPanel {
 			onDone.run();
 		};
 		final String checked = folder;
-		boolean started = runBridge(dialog != null ? "" : "Checking data in " + folder + " . . .", "check_data", args, steps, res -> {
-			if (cancelled[0]) return;
-			if (res.get("error").getAsBoolean()) {
-				failed.accept("The following error was found when checking the folder:\n"
-						+ res.get("error_message").getAsString());
-				return;
-			}
-			model.setDataChecked(q.index, res.getAsJsonObject("data_constraints"), res.getAsJsonObject("sample_info"));
-			rebuildToc();
-			onDone.run();
-			previewData(q, checked, title, dialog, steps, cancelled, noPreview);
-		}, failed);
+		// The check itself, reading this percentage of each Zarr/H5 image (in random blocks)
+		java.util.function.IntPredicate check = percentage -> {
+			args.addProperty("percentage", percentage);
+			return runBridge(dialog != null ? "" : "Checking data in " + checked + " . . .", "check_data", args, steps, res -> {
+				if (cancelled[0]) return;
+				if (res.get("error").getAsBoolean()) {
+					failed.accept("The following error was found when checking the folder:\n"
+							+ res.get("error_message").getAsString());
+					return;
+				}
+				model.setDataChecked(q.index, res.getAsJsonObject("data_constraints"), res.getAsJsonObject("sample_info"));
+				rebuildToc();
+				onDone.run();
+				previewData(q, checked, title, dialog, steps, cancelled, noPreview);
+			}, failed);
+		};
+		// Large Zarr/H5 images take long to read whole: their size is measured first and, if they are large, the user
+		// chooses how much of them to check
+		File[] chunked = new File(folder).listFiles((dir, name) -> name.matches("(?i).*\\.(zarr|n5|h5|hdf5|hdf)$"));
+		boolean started;
+		if (chunked != null && chunked.length > 0) {
+			JsonObject sizeArgs = new JsonObject();
+			sizeArgs.addProperty("folder", folder);
+			started = runBridge(dialog != null ? "" : "Measuring the Zarr/H5 data in " + folder + " . . .", "data_size",
+					sizeArgs, steps, size -> {
+						if (cancelled[0]) return;
+						int percentage = size.get("large").getAsBoolean() ? SampleSizeDialog.ask(this, checked, size) : 100;
+						if (percentage > 0) check.test(percentage);
+						else if (dialog != null) dialog.close();
+					}, failed);
+		} else {
+			started = check.test(100);
+		}
 		if (!started || dialog == null) return;
 		dialog.setOnCancel(() -> {
 			cancelled[0] = true;
@@ -852,6 +973,7 @@ public class WizardPanel extends JPanel {
 		args.addProperty("ndim", model.getAnswer("PROBLEM.NDIM").getAsString());
 		args.addProperty("raw", raw == null ? "" : raw);
 		args.addProperty("target", target == null ? "" : target);
+		args.addProperty("target_data_path", target == null ? "" : model.targetDataPath(train ? "TRAIN" : "TEST"));
 		java.util.function.Consumer<String> failed = msg -> {
 			if (cancelled[0]) return;
 			// The data was checked: without a preview the user just closes the window
@@ -933,6 +1055,8 @@ public class WizardPanel extends JPanel {
 		}
 		Question q = model.getQuestion(source);
 		model.setChoice(source, 0);
+		// There is nothing to suggest at the end of the questions
+		pretrainedSuggestedKey = modelsKey();
 		rebuildToc();
 		showQuestion(source);
 		UiUtils.info(this, "No compatible models were found in the BioImage Model Zoo for this workflow and dimensions.\n\n"
@@ -1462,6 +1586,7 @@ public class WizardPanel extends JPanel {
 			model.clear();
 			previews.clear();
 			confirmedWorkflow = null;
+			pretrainedSuggestedKey = null;
 			pages.show(pagePanel, START);
 		});
 	}

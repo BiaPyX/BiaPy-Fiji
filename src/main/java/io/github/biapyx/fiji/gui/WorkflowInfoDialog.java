@@ -154,7 +154,9 @@ final class WorkflowInfoDialog {
 		sb.append("</ul></li></ul>");
 		if (info != null && info.get("by_chunks").getAsBoolean())
 			sb.append("<p>As the test images are large, they are predicted by chunks and their results are saved as "
-					+ "<i>.zarr</i> files (open them in Fiji with File &gt; Import &gt; HDF5/N5/Zarr/OME-NGFF).</p>");
+					+ "<i>.zarr</i> files (see <i>Zarr files</i> below to open them).</p>");
+		if (info != null && info.has("zarr_outputs") && info.get("zarr_outputs").getAsBoolean())
+			sb.append(zarrFiles(info.get("ome_zarr_version").getAsString()));
 
 		if (test) sb.append(analysis(workflow, info, thresholds));
 
@@ -162,6 +164,22 @@ final class WorkflowInfoDialog {
 				+ "explains all of this in detail. Do you have problems or doubts? Post them in the <a href='")
 				.append(BiaPyFiji.URL_FORUM).append("'>image.sc forum</a> (tag <i>biapy</i>): describe your problem and "
 						+ "attach the configuration file and the log, so others can help you.</p>");
+		return sb.toString();
+	}
+
+	/** How to open the Zarr files the job writes, which are OME-Zarr images. */
+	static String zarrFiles(String version) {
+		boolean v05 = version.startsWith("0.5");
+		StringBuilder sb = new StringBuilder("<h2>Zarr files</h2><p>The <i>.zarr</i> files the job creates are "
+				+ "<a href='https://ngff.openmicroscopy.org'>OME-Zarr</a> " + esc(version) + " images (Zarr format "
+				+ (v05 ? "3" : "2") + "): besides the data, they store the order of their axes and the size of their "
+				+ "voxels, so other tools open them correctly. Open them in Fiji with File &gt; Import &gt; "
+				+ "HDF5/N5/Zarr/OME-NGFF.</p>");
+		if (v05)
+			sb.append("<p><b>Fiji reads OME-Zarr 0.5 (Zarr format 3) since the <a href='").append(BiaPyFiji.URL_FIJI_ZARR3)
+					.append("'>new release of its N5 plugins</a></b>: if Fiji can't open them, update it (Help &gt; "
+							+ "Update...). For tools that only read the previous version, set <i>DATA.OME_ZARR.VERSION</i> "
+							+ "to 0.4 in the configuration.</p>");
 		return sb.toString();
 	}
 

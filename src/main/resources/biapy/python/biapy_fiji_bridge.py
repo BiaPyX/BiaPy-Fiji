@@ -153,7 +153,21 @@ def cmd_check_data(args):
     from biapy.wizard.data_check import check_folder
 
     step("Reading and analyzing the files of the folder . . .")
-    return to_jsonable(check_folder(args["folder"], args["key"], args["workflow"], args["ndim"], progress=progress))
+    return to_jsonable(
+        check_folder(
+            args["folder"], args["key"], args["workflow"], args["ndim"], progress=progress,
+            percentage=float(args.get("percentage", 100)), data_path=args.get("data_path", ""),
+        )
+    )
+
+
+def cmd_data_size(args):
+    """Size of the Zarr/H5 images of a folder, to ask how much of them to check when they are large."""
+    wizard()
+    from biapy.wizard.data_check import folder_size
+
+    step("Measuring the Zarr/H5 images of the folder . . .")
+    return folder_size(args["folder"])
 
 
 def cmd_preview_data(args):
@@ -165,7 +179,10 @@ def cmd_preview_data(args):
     from biapy.wizard.preview import preview
 
     step("Preparing the preview of the images . . .")
-    return preview(args["workflow"], args["ndim"], args.get("raw") or None, args.get("target") or None)
+    return preview(
+        args["workflow"], args["ndim"], args.get("raw") or None, args.get("target") or None,
+        target_data_path=args.get("target_data_path", ""),
+    )
 
 
 def cmd_find_models(args):
@@ -290,6 +307,18 @@ def cmd_workflow_info(args):
         "test": bool(cfg.TEST.ENABLE),
         "by_chunks": bool(cfg.TEST.BY_CHUNKS.ENABLE),
     }
+    # Zarr files the job writes, all as OME-Zarr images: the results predicted by chunks and the training masks of
+    # instance segmentation and detection created from Zarr images
+    def has_zarr(folder):
+        try:
+            return any(f.endswith(".zarr") for f in os.listdir(folder))
+        except OSError:
+            return False
+
+    out["zarr_outputs"] = out["by_chunks"] or (
+        out["train"] and p.TYPE in ("INSTANCE_SEG", "DETECTION") and has_zarr(cfg.DATA.TRAIN.PATH)
+    )
+    out["ome_zarr_version"] = str(cfg.DATA.OME_ZARR.VERSION)
     if p.TYPE == "INSTANCE_SEG":
         inst = p.INSTANCE_SEG
         opts = dict(inst.DATA_CHANNELS_EXTRA_OPTS[0]) if inst.DATA_CHANNELS_EXTRA_OPTS else {}
@@ -403,6 +432,7 @@ COMMANDS = {
     "env_quick": cmd_env_quick,
     "env_verify": cmd_env_verify,
     "check_data": cmd_check_data,
+    "data_size": cmd_data_size,
     "preview_data": cmd_preview_data,
     "find_models": cmd_find_models,
     "build_config": cmd_build_config,

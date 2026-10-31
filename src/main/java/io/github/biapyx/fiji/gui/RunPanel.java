@@ -71,7 +71,10 @@ public class RunPanel extends JPanel {
 
 		runBtn.addActionListener(e -> run());
 
-		outputField.setText(Prefs.get(PREF_OUT_DIR, System.getProperty("user.home")));
+		// The output folder starts empty and is cleared after each run, so that a new job is not written by mistake where
+		// the previous one was (e.g. with another configuration but the same job name). Browse opens in the last one.
+		outputField.setToolTipText("Folder where the job's results folder is created. It is cleared after each run, "
+				+ "so that each job's folder is chosen on purpose");
 		String lastYaml = Prefs.get(PREF_YAML, "");
 		if (!lastYaml.isEmpty() && new File(lastYaml).isFile()) setConfigFile(new File(lastYaml), false);
 		updateFinalDir();
@@ -90,7 +93,8 @@ public class RunPanel extends JPanel {
 			if (f != null) setConfigFile(f, false);
 		}));
 		addRow(form, c, 1, "Output folder:", outputField, browseButton("Choose the folder where the job's folder is created", () -> {
-			File f = UiUtils.chooseDirectory(this, outputField.getText());
+			String current = outputField.getText().trim();
+			File f = UiUtils.chooseDirectory(this, current.isEmpty() ? Prefs.get(PREF_OUT_DIR, "") : current);
 			if (f != null) outputField.setText(f.getAbsolutePath());
 			updateFinalDir();
 		}));
@@ -332,8 +336,13 @@ public class RunPanel extends JPanel {
 			UiUtils.error(this, "Please select an existing configuration file.");
 			return;
 		}
-		if (outputField.getText().trim().isEmpty() || name.isEmpty()) {
-			UiUtils.error(this, "Please select an output folder and a job name.");
+		if (outputField.getText().trim().isEmpty()) {
+			UiUtils.error(this, "Please select the output folder of this job.\n\nIt is cleared after each run, so that a "
+					+ "new job does not write its results where the previous one did by mistake.");
+			return;
+		}
+		if (name.isEmpty()) {
+			UiUtils.error(this, "Please enter a job name.");
 			return;
 		}
 		if (name.matches(".*[\\\\/:*?\"<>|\\s].*")) {
@@ -420,6 +429,7 @@ public class RunPanel extends JPanel {
 			cmd.add("mps");
 		}
 		main.startJob(name, yaml, jobFolder(), dev, cmd);
+		outputField.setText("");
 	}
 
 	/**

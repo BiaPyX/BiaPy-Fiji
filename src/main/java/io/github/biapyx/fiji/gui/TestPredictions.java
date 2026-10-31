@@ -105,7 +105,9 @@ public class TestPredictions {
 					WrappingTextArea note = new WrappingTextArea("The test images were predicted by chunks, as they are "
 							+ "large, so the results are saved as Zarr files, which this tab can't show. They are in the '"
 							+ dir.getName() + "' folder of the results: open them in Fiji with File > Import > "
-							+ "HDF5/N5/Zarr/OME-NGFF.");
+							+ "HDF5/N5/Zarr/OME-NGFF. They are OME-Zarr 0.5 images by default (Zarr format 3), which Fiji "
+							+ "reads since the latest release of its N5 plugins: update Fiji (Help > Update...) if it "
+							+ "can't open them (see 'Workflow info').");
 					note.setForeground(BiaPyFiji.GREY);
 					note.setFont(new JLabel().getFont().deriveFont(Font.PLAIN, 12f));
 					content.add(note, BorderLayout.NORTH);

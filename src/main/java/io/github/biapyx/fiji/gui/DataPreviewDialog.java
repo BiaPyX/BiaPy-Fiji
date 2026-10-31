@@ -190,10 +190,32 @@ public class DataPreviewDialog {
 	/** Replaces the progress by an error (the data can't be used). */
 	public void showError(String message) {
 		finished = true;
+		center.removeAll();
+		center.add(errorPanel(message), BorderLayout.CENTER);
+		change.setText("Close");
+		change.setToolTipText("Close this window");
+		ok.setVisible(false);
+		dialog.pack();
+		dialog.setLocationRelativeTo(owner);
+		dialog.revalidate();
+		dialog.repaint();
+	}
+
+	/** The error shown instead of the progress (package visible for tests). */
+	static JPanel errorPanel(String message) {
 		JPanel p = new JPanel();
 		p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
 		p.setBackground(BiaPyFiji.WHITE);
 		p.setBorder(BorderFactory.createEmptyBorder(16, 20, 8, 20));
+		// The first line says what failed (e.g. "The following error was found when checking the folder:"): centered
+		// above the details
+		int nl = message.indexOf('\n');
+		if (nl > 0) {
+			p.add(centered(text("<center>" + escape(message.substring(0, nl)) + "</center>", ERROR_WIDTH, Font.BOLD,
+					BiaPyFiji.RED)));
+			p.add(javax.swing.Box.createVerticalStrut(8));
+			message = message.substring(nl + 1);
+		}
 		// A text area, not an HTML label: it also breaks long words such as paths, so nothing is cut
 		javax.swing.JTextArea text = new javax.swing.JTextArea(message);
 		text.setLineWrap(true);
@@ -216,21 +238,18 @@ public class DataPreviewDialog {
 		} else {
 			p.add(text);
 		}
-		center.removeAll();
-		center.add(p, BorderLayout.CENTER);
-		change.setText("Close");
-		change.setToolTipText("Close this window");
-		ok.setVisible(false);
-		dialog.pack();
-		dialog.setLocationRelativeTo(owner);
-		dialog.revalidate();
-		dialog.repaint();
+		return p;
 	}
 
 	/** Shows the window until the user closes it. @return true if the user accepted the data */
 	public boolean waitForUser() {
 		dialog.setVisible(true); // blocks until closed (the check goes on meanwhile)
 		return accepted;
+	}
+
+	/** Closes the window without using the folder (e.g. the user did not want to check it after all). */
+	public void close() {
+		close(false);
 	}
 
 	private void close(boolean accept) {
