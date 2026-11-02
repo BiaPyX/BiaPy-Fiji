@@ -5,7 +5,7 @@ import javax.swing.SwingUtilities;
 import ij.plugin.PlugIn;
 import io.github.biapyx.fiji.gui.MainWindow;
 
-/** Entry point: {@code Plugins > BiaPy > BiaPy}. Only one BiaPy window exists per Fiji session. */
+/** Entry point: {@code Plugins > BiaPy > Run BiaPy}. Only one BiaPy window exists per Fiji session. */
 public class BiaPy_Plugin implements PlugIn {
 
 	private static MainWindow window;

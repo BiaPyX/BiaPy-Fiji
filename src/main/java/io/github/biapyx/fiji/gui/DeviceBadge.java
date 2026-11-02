@@ -95,7 +95,9 @@ public class DeviceBadge extends JComponent {
 				name = System.getenv("PROCESSOR_IDENTIFIER");
 			} else if (os.contains("mac")) {
 				Process p = new ProcessBuilder("sysctl", "-n", "machdep.cpu.brand_string").start();
-				name = new String(p.getInputStream().readAllBytes()).trim();
+				try (java.util.Scanner sc = new java.util.Scanner(p.getInputStream(), "UTF-8").useDelimiter("\\A")) {
+					name = sc.hasNext() ? sc.next().trim() : null;
+				}
 			} else {
 				for (String l : java.nio.file.Files.readAllLines(java.nio.file.Paths.get("/proc/cpuinfo")))
 					if (l.startsWith("model name")) {

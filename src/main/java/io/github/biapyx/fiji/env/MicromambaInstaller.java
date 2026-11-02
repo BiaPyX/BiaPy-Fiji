@@ -18,10 +18,9 @@ import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
 
-import io.bioimage.modelrunner.system.PlatformDetection;
 
 /**
- * Downloads the micromamba executable into the place where JDLL's {@code Mamba} expects it
+ * Downloads the micromamba executable into the installation folder, where JDLL's {@code Mamba} (SAMJ) also puts it
  * ({@code <root>/bin/micromamba} or {@code <root>\Library\bin\micromamba.exe}).
  *
  * JDLL (and so SAMJ) only tries micro.mamba.pm with a 10 s timeout, which fails on slow networks or
@@ -42,7 +41,7 @@ public class MicromambaInstaller {
 	private MicromambaInstaller() {}
 
 	public static File executable(File root) {
-		return PlatformDetection.isWindows() ? new File(root, "Library" + File.separator + "bin" + File.separator + "micromamba.exe")
+		return Platform.isWindows() ? new File(root, "Library" + File.separator + "bin" + File.separator + "micromamba.exe")
 				: new File(root, "bin" + File.separator + "micromamba");
 	}
 
@@ -59,7 +58,7 @@ public class MicromambaInstaller {
 
 		for (int attempt = 1; attempt <= ATTEMPTS_PER_SOURCE; attempt++) {
 			try {
-				File tmp = File.createTempFile("micromamba", PlatformDetection.isWindows() ? ".exe" : "");
+				File tmp = File.createTempFile("micromamba", Platform.isWindows() ? ".exe" : "");
 				download(github, tmp, progress, log);
 				Files.move(tmp.toPath(), exe.toPath(), StandardCopyOption.REPLACE_EXISTING);
 				finish(exe);
@@ -143,7 +142,7 @@ public class MicromambaInstaller {
 	}
 
 	private static void extractFromTarBz2(File archive, File exe) throws IOException {
-		String wanted = PlatformDetection.isWindows() ? "Library/bin/micromamba.exe" : "bin/micromamba";
+		String wanted = Platform.isWindows() ? "Library/bin/micromamba.exe" : "bin/micromamba";
 		try (TarArchiveInputStream tar = new TarArchiveInputStream(
 				new BZip2CompressorInputStream(new BufferedInputStream(Files.newInputStream(archive.toPath()))))) {
 			TarArchiveEntry e;
@@ -160,7 +159,7 @@ public class MicromambaInstaller {
 	private static String platform() {
 		String os = System.getProperty("os.name");
 		String arch = System.getProperty("os.arch");
-		boolean arm = arch.equals("aarch64") || arch.equals("arm64") || PlatformDetection.isUsingRosseta();
+		boolean arm = arch.equals("aarch64") || arch.equals("arm64") || Platform.isRosetta();
 		if (os.startsWith("Windows")) return "win-64";
 		if (os.startsWith("Mac")) return arm ? "osx-arm64" : "osx-64";
 		return arm ? "linux-aarch64" : "linux-64";

@@ -9,7 +9,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import io.bioimage.modelrunner.system.PlatformDetection;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -59,7 +58,7 @@ public class GpuStatus {
 	 * System32, which is in the PATH).
 	 */
 	static String executable() {
-		if (PlatformDetection.isWindows()) {
+		if (Platform.isWindows()) {
 			String pf = System.getenv().getOrDefault("ProgramFiles", "C:\\Program Files");
 			java.io.File f = new java.io.File(pf, "NVIDIA Corporation\\NVSMI\\nvidia-smi.exe");
 			if (f.isFile() && !onPath("nvidia-smi.exe")) return f.getAbsolutePath();

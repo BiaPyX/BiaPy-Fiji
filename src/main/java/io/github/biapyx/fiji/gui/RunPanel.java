@@ -19,8 +19,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import ij.Prefs;
-import io.bioimage.modelrunner.system.PlatformDetection;
 import io.github.biapyx.fiji.BiaPyFiji;
+import io.github.biapyx.fiji.env.Platform;
 import io.github.biapyx.fiji.env.PythonEnv;
 
 /**
@@ -418,7 +418,7 @@ public class RunPanel extends JPanel {
 		cmd.add("--run_id");
 		cmd.add(String.valueOf(JobPanel.RUN_ID));
 		cmd.add("--dist_backend");
-		cmd.add(PlatformDetection.isWindows() ? "gloo" : "nccl");
+		cmd.add(Platform.isWindows() ? "gloo" : "nccl");
 		if (!gpus.isEmpty()) {
 			cmd.add("--gpu");
 			StringBuilder ids = new StringBuilder();

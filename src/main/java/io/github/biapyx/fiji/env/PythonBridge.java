@@ -209,8 +209,7 @@ public class PythonBridge {
 			current = null;
 			if (s == null) return;
 			s.killed = cancelled;
-			s.process.descendants().forEach(ProcessHandle::destroyForcibly);
-			s.process.destroyForcibly();
+			Processes.killTree(s.process);
 		}
 
 		String call(String command, JsonObject args, Consumer<String> log) throws Exception {

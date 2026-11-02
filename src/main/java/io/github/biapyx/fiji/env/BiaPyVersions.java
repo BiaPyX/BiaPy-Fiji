@@ -29,6 +29,8 @@ public class BiaPyVersions {
 	private static final String PREF_SELECTED = "biapy.selected_version";
 	private static final String PREF_CACHE = "biapy.available_versions";
 	private static final String PREF_DEV_SOURCE = "biapy.dev_source";
+	/** Whether the development version was selected when there were releases to choose from (see selected()). */
+	private static final String PREF_DEV_CHOSEN = "biapy.dev_chosen";
 	/**
 	 * Entry of the list to install BiaPy from its source code instead of a release (e.g. a branch on GitHub, to test
 	 * changes before they are released).
@@ -93,12 +95,15 @@ public class BiaPyVersions {
 
 	/**
 	 * Version to install: the one the user selected, or the latest known, or the development version when no
-	 * release is supported yet.
+	 * release is supported yet. The development version is kept only if it was chosen when there were releases to
+	 * choose from: before the first supported release it was the only entry of the list, and installing it remembered
+	 * it, so the latest release is selected once there is one.
 	 */
 	public static String selected() {
 		String v = Prefs.get(PREF_SELECTED, "");
-		if (!v.isEmpty() && (isDev(v) || compare(v, BiaPyFiji.BIAPY_MIN_VERSION) >= 0)) return v;
 		List<String> known = cached();
+		if (isDev(v) && ("true".equals(Prefs.get(PREF_DEV_CHOSEN, "false")) || known.isEmpty())) return v;
+		if (!v.isEmpty() && !isDev(v) && compare(v, BiaPyFiji.BIAPY_MIN_VERSION) >= 0) return v;
 		return known.isEmpty() ? DEV : known.get(0);
 	}
 
@@ -109,6 +114,8 @@ public class BiaPyVersions {
 
 	public static void select(String version) {
 		Prefs.set(PREF_SELECTED, version);
+		// See selected(): the development version is a choice only if there were releases to choose from
+		Prefs.set(PREF_DEV_CHOSEN, String.valueOf(isDev(version) && !cached().isEmpty()));
 		Prefs.savePreferences();
 	}
 

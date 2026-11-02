@@ -7,12 +7,9 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import io.bioimage.modelrunner.apposed.appose.Mamba;
-import io.bioimage.modelrunner.system.PlatformDetection;
-
 /**
- * Installs BiaPy in a Python environment created with micromamba inside the Fiji folder, using JDLL's
- * {@link Mamba} like SAMJ does (micromamba itself is downloaded by {@link MicromambaInstaller}).
+ * Installs BiaPy in a Python environment created with micromamba inside the Fiji folder (micromamba itself is
+ * downloaded by {@link MicromambaInstaller}), in the same layout as SAMJ's (JDLL): {@code <root>/envs/biapy}.
  */
 public class BiaPyEnvManager {
 
@@ -71,7 +68,7 @@ public class BiaPyEnvManager {
 	 */
 	public void install(boolean fresh, String version) throws Exception {
 		installThread = Thread.currentThread();
-		boolean cudaTorch = PlatformDetection.isWindows() && hasNvidiaGpu();
+		boolean cudaTorch = Platform.isWindows() && hasNvidiaGpu();
 		List<String> steps = new ArrayList<>(Arrays.asList("Installing micromamba", "Creating the Python environment"));
 		if (cudaTorch) steps.add("Installing PyTorch with GPU support");
 		steps.add("Installing BiaPy and its dependencies");
@@ -88,26 +85,28 @@ public class BiaPyEnvManager {
 				if (f >= 0) listener.stepProgress(f);
 			}, listener::log);
 		}
-		Mamba mamba = new Mamba(root.getAbsolutePath());
-		if (!mamba.checkMambaInstalled())
-			throw new IllegalStateException("micromamba was downloaded but cannot be executed: " + MicromambaInstaller.executable(root));
+		File micromamba = MicromambaInstaller.executable(root);
+		if (runMicromamba(root, micromamba, line -> {}, "--version") != 0)
+			throw new IllegalStateException("micromamba was downloaded but cannot be executed: " + micromamba);
 		listener.task(1, "Micromamba ready");
 		checkCancelled();
 
 		listener.step(++s, total, steps.get(s));
 		listener.task(-1, "Downloading Python " + PYTHON_VERSION + " . . .");
 		final double[] envProgress = { 0 };
-		mamba.setConsoleOutputConsumer(line -> {
-			listener.log(line);
-			String l = line.trim();
-			if (!l.isEmpty() && l.length() < 120) listener.task(-1, l);
-			envProgress[0] += (0.95 - envProgress[0]) * 0.03;
-			listener.stepProgress(envProgress[0]);
-		});
-		mamba.setErrorOutputConsumer(listener::log);
 		File python = PythonEnv.pythonInEnv(PythonEnv.getManagedEnvDir());
 		if (fresh || !python.isFile()) {
-			mamba.create(PythonEnv.ENV_NAME, true, "-c", "conda-forge", "python=" + PYTHON_VERSION, "pip");
+			int code = runMicromamba(root, micromamba, line -> {
+				listener.log(line);
+				String l = line.trim();
+				if (!l.isEmpty() && l.length() < 120) listener.task(-1, l);
+				envProgress[0] += (0.95 - envProgress[0]) * 0.03;
+				listener.stepProgress(envProgress[0]);
+			}, "create", "-p", PythonEnv.getManagedEnvDir().getAbsolutePath(), "-c", "conda-forge",
+					"python=" + PYTHON_VERSION, "pip", "--yes");
+			checkCancelled();
+			if (code != 0) throw new IllegalStateException("micromamba could not create the Python environment (exit code "
+					+ code + "). See the details.");
 		} else {
 			listener.log("Reusing the existing Python environment: " + PythonEnv.getManagedEnvDir());
 		}
@@ -129,9 +128,10 @@ public class BiaPyEnvManager {
 	private void installBiaPy(File python, String version) throws Exception {
 		String requirement = BiaPyVersions.requirement(version);
 		pip(python, requirement);
-		// The development version keeps the number of the last release: pip would not replace an installation
-		// with the same number, so BiaPy itself (not its dependencies) is installed again
-		if (BiaPyVersions.isDev(version)) pip(python, "--force-reinstall", "--no-deps", requirement);
+		// The development version has the number of the release it leads to: pip does not replace an installation
+		// with the same number (from the development version to that release, or the other way), so BiaPy itself
+		// (not its dependencies) is installed again
+		pip(python, "--force-reinstall", "--no-deps", requirement);
 		fixPydantic(python);
 		listener.task(1, BiaPyVersions.describe(version) + " installed");
 	}
@@ -245,8 +245,23 @@ public class BiaPyEnvManager {
 	static java.util.Map<String, String> pipEnvironment() {
 		java.util.Map<String, String> env = PythonEnv.environment();
 		env.put("-PIP_", ""); // remove every inherited PIP_* variable...
-		env.put("PIP_CONFIG_FILE", PlatformDetection.isWindows() ? "nul" : "/dev/null"); // ...and all config files
+		env.put("PIP_CONFIG_FILE", Platform.isWindows() ? "nul" : "/dev/null"); // ...and all config files
 		return env;
+	}
+
+	/** Runs micromamba from the installation folder (cancellable, see {@link #cancel()}) and returns its exit code. */
+	private int runMicromamba(File root, File micromamba, java.util.function.Consumer<String> lines, String... args)
+			throws Exception {
+		List<String> cmd = new ArrayList<>();
+		cmd.add(micromamba.getAbsolutePath());
+		cmd.addAll(Arrays.asList(args));
+		ProcessRunner runner = new ProcessRunner(cmd, null, root);
+		currentRunner = runner;
+		try {
+			return runner.run(lines);
+		} finally {
+			currentRunner = null;
+		}
 	}
 
 	public void cancel() {

@@ -11,7 +11,7 @@
 
 	<groupId>io.github.biapyx</groupId>
 	<artifactId>biapy-fiji</artifactId>
-	<version>0.1.0-SNAPSHOT</version>
+	<version>0.1.0</version>
 
 	<name>BiaPy for Fiji</name>
 	<description>Fiji plugin to run BiaPy deep-learning bioimage analysis workflows</description>
@@ -79,7 +79,8 @@
 		<license.projectName>BiaPy for Fiji</license.projectName>
 
 		<releaseProfiles>sign,deploy-to-scijava</releaseProfiles>
-		<dl-modelrunner.version>0.6.3</dl-modelrunner.version>
+		<!-- Fiji-Stable runs on Java 8 (only Fiji-Latest has a newer Java) -->
+		<scijava.jvm.version>8</scijava.jvm.version>
 	</properties>
 
 	<repositories>
@@ -94,12 +95,6 @@
 			<groupId>net.imagej</groupId>
 			<artifactId>ij</artifactId>
 		</dependency>
-		<!-- Provides Mamba (micromamba installer/env manager), the same machinery SAMJ uses -->
-		<dependency>
-			<groupId>io.bioimage</groupId>
-			<artifactId>dl-modelrunner</artifactId>
-			<version>${dl-modelrunner.version}</version>
-		</dependency>
 		<!-- Extracts micromamba when it comes as a .tar.bz2 -->
 		<dependency>
 			<groupId>org.apache.commons</groupId>
@@ -113,6 +108,11 @@
 		<dependency>
 			<groupId>com.google.code.gson</groupId>
 			<artifactId>gson</artifactId>
+		</dependency>
+		<!-- Process id of the jobs on Windows with Java 8, to stop them with every process they started -->
+		<dependency>
+			<groupId>net.java.dev.jna</groupId>
+			<artifactId>jna</artifactId>
 		</dependency>
 	</dependencies>
 

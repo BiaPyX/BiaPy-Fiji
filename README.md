@@ -11,13 +11,22 @@ Fiji plugin to run [BiaPy](https://biapyx.github.io) deep-learning workflows. It
   shows the workflow, some of those images and the instance representation chosen.
 - **RUN WORKFLOW**: select a configuration, output folder, job name and device, run BiaPy and follow its output.
 
-Menu entry: `Plugins > BiaPy > BiaPy`.
+Menu entry: `Plugins > BiaPy > Run BiaPy`.
+
+## Install
+
+In Fiji: `Help > Update...` > `Manage update sites`, check **BiaPy** (or, until it is in the list, `Add Unlisted Site`
+with the URL `https://sites.imagej.net/BiaPyX/`), `Apply and Close`, `Apply changes` and restart Fiji. Then, in
+`Plugins > BiaPy > Run BiaPy`, the HOME tab installs BiaPy.
+
+It works in both Fiji-Stable (Java 8) and Fiji-Latest (Java 21). The plugin is a single jar
+(`plugins/biapy-fiji-<version>.jar`): the libraries it uses (gson, snakeyaml, commons-compress, JNA) come with Fiji.
 
 ## How it runs BiaPy
 
-Same approach as [SAMJ](https://github.com/segment-anything-models-java/SAMJ): JDLL's `Mamba` class
-(`io.bioimage:dl-modelrunner`) downloads micromamba and creates a Python environment inside the Fiji folder
-(`<Fiji>/biapy/envs/biapy`), where `biapy` is installed with pip. Then:
+Same approach as [SAMJ](https://github.com/segment-anything-models-java/SAMJ), without its JDLL dependency:
+micromamba is downloaded (`env/MicromambaInstaller.java`) and creates a Python environment inside the Fiji folder
+(`<Fiji>/biapy/envs/biapy`, the same layout as SAMJ's), where `biapy` is installed with pip. Then:
 
 - BiaPy jobs run as a child process (`python -c "import biapy; biapy.main()" --config ...`) whose output is
   streamed into the RUN WORKFLOW tab and which can be stopped.
@@ -39,7 +48,8 @@ src/main/java/io/github/biapyx/fiji/
   BiaPy_Plugin.java          ImageJ entry point (single window per session)
   BiaPyFiji.java             versions, links, colours, resource helpers
   env/PythonEnv.java         where the Python is + environment variables to run it
-  env/BiaPyEnvManager.java   installation with micromamba (JDLL Mamba) + pip
+  env/BiaPyEnvManager.java   installation with micromamba + pip
+  env/Platform.java, Processes.java  OS checks, and stopping a job with every process it started (also on Java 8)
   env/ProcessRunner.java     runs a process streaming its output, cancellable
   env/PythonBridge.java      calls biapy_fiji_bridge.py commands (wizard ones in the kept-alive process)
   gui/MainWindow.java        the JFrame; content is in gui/MainPanel.java (sidebar + tabs)
@@ -101,14 +111,28 @@ The data checks, preview and configuration need no syncing: they are BiaPy's (`b
 
 ## Build and install
 
-Requires JDK 11+ and Maven. The plugin targets Java 11, so it needs a recent Fiji (Fiji ships Java 21 now;
-old Fiji installations bundled with Java 8 will not load it).
+Requires a JDK and Maven. The plugin targets Java 8 (`scijava.jvm.version`), the Java of Fiji-Stable.
 
 ```bash
 mvn package
-# copy the plugin and its dependencies (dl-modelrunner, etc.) into a Fiji installation
-mvn install -Dscijava.app.directory=/path/to/Fiji.app
+# copy the plugin into a Fiji installation
+cp target/biapy-fiji-<version>.jar /path/to/Fiji.app/plugins/
 ```
+
+### Publishing to the update site
+
+The site is `https://sites.imagej.net/BiaPyX/`. To publish a version (not a `-SNAPSHOT`), build it and upload the jar with
+an up-to-date Fiji used only for that (run `Help > Update...` in it first: the Updater refuses to upload from a Fiji
+whose libraries are older than the ones the jar was built against, and records those libraries as its dependencies):
+
+```bash
+mvn package
+UPDATE_SITE_PASSWORD=... scripts/upload_update_site.sh /path/to/Fiji.app            # add --simulate to try first
+```
+
+The script uses Fiji's command-line Updater (`--update edit-update-site` / `--update upload`) and removes the password
+from that Fiji's list of update sites afterwards. Use a Fiji-Stable (Java 8) one, so the dependencies recorded are
+the ones both Fiji-Stable and Fiji-Latest have.
 
 ### Development
 

@@ -396,7 +396,9 @@ public class HomePanel extends JPanel {
 		} else if (installed.equals(selected) && installedSource() == null) {
 			versionNote.setText("installed");
 		} else {
-			versionNote.setText("BiaPy " + installed + " is installed");
+			// The development version has the number of a release: it is told apart by its source
+			versionNote.setText(installedSource() != null ? "the development version (" + installed + ") is installed"
+					: "BiaPy " + installed + " is installed");
 			switchBtn.setText("Switch to BiaPy " + selected);
 			switchBtn.setVisible(true);
 			switchBtn.setEnabled(!installing);

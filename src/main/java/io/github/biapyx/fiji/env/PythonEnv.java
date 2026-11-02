@@ -9,7 +9,6 @@ import java.util.Map;
 
 import ij.IJ;
 import ij.Prefs;
-import io.bioimage.modelrunner.system.PlatformDetection;
 
 /**
  * Locates the Python interpreter used to run BiaPy. By default it is the environment that the plugin
@@ -35,13 +34,13 @@ public class PythonEnv {
 	}
 
 	public static File pythonInEnv(File envDir) {
-		return PlatformDetection.isWindows() ? new File(envDir, "python.exe") : Paths.get(envDir.getAbsolutePath(), "bin", "python").toFile();
+		return Platform.isWindows() ? new File(envDir, "python.exe") : Paths.get(envDir.getAbsolutePath(), "bin", "python").toFile();
 	}
 
 	/** The environment folder that contains the given python executable. */
 	public static File envDirOf(File python) {
 		File parent = python.getAbsoluteFile().getParentFile();
-		if (!PlatformDetection.isWindows() && parent != null && parent.getName().equals("bin")) return parent.getParentFile();
+		if (!Platform.isWindows() && parent != null && parent.getName().equals("bin")) return parent.getParentFile();
 		return parent;
 	}
 
@@ -84,7 +83,7 @@ public class PythonEnv {
 		vars.put("PYTHONUNBUFFERED", "1");
 		vars.put("PYTHONIOENCODING", "utf-8");
 		vars.put("PYTHONNOUSERSITE", "1");
-		if (PlatformDetection.isWindows()) {
+		if (Platform.isWindows()) {
 			String p = String.join(File.pathSeparator, env.getAbsolutePath(),
 					Paths.get(env.getAbsolutePath(), "Library", "mingw-w64", "bin").toString(),
 					Paths.get(env.getAbsolutePath(), "Library", "usr", "bin").toString(),
@@ -95,7 +94,7 @@ public class PythonEnv {
 			vars.put("USE_LIBUV", "0");
 		} else {
 			vars.put("PATH+", new File(env, "bin").getAbsolutePath());
-			if (PlatformDetection.isMacOS()) {
+			if (Platform.isMacOS()) {
 				vars.put("DYLD_FALLBACK_LIBRARY_PATH+", new File(env, "lib").getAbsolutePath());
 				// The few operations PyTorch has not implemented for Apple Silicon's GPU (MPS) run on the CPU
 				// instead of stopping the job

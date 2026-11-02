@@ -61,8 +61,7 @@ public class ProcessRunner {
 		cancelled = true;
 		Process p = process;
 		if (p == null) return;
-		p.descendants().forEach(ProcessHandle::destroyForcibly);
-		p.destroyForcibly();
+		Processes.killTree(p);
 	}
 
 	public boolean isCancelled() {
