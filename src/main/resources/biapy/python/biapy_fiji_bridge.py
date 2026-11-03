@@ -157,6 +157,7 @@ def cmd_check_data(args):
         check_folder(
             args["folder"], args["key"], args["workflow"], args["ndim"], progress=progress,
             percentage=float(args.get("percentage", 100)), data_path=args.get("data_path", ""),
+            tracking=bool(args.get("tracking", False)),
         )
     )
 
@@ -293,6 +294,7 @@ def cmd_workflow_info(args):
         "train": bool(cfg.TRAIN.ENABLE),
         "test": bool(cfg.TEST.ENABLE),
         "by_chunks": bool(cfg.TEST.BY_CHUNKS.ENABLE),
+        "tracking": bool(p.TRACKING.ENABLE),
     }
     # Zarr files the job writes, all as OME-Zarr images: the results predicted by chunks and the training masks of
     # instance segmentation and detection created from Zarr images
@@ -310,27 +312,14 @@ def cmd_workflow_info(args):
         inst = p.INSTANCE_SEG
         opts = dict(inst.DATA_CHANNELS_EXTRA_OPTS[0]) if inst.DATA_CHANNELS_EXTRA_OPTS else {}
         dims = 3 if p.NDIM == "3D" else 2
-        # The channels of the raw prediction (per_image), in order: how many each one takes
-        outputs = []
-        for ch in inst.DATA_CHANNELS:
-            if ch in ("I", "We"):
-                continue
-            if ch == "R":
-                n = int(opts.get("R", {}).get("nrays", 32 if dims == 2 else 96))
-            elif ch == "A":
-                try:
-                    from biapy.data.pre_processing import affinity_channel_names
+        from biapy.data.pre_processing import instance_channel_names
 
-                    n = len(affinity_channel_names(opts.get("A", {})))
-                except Exception:
-                    n = dims
-            elif ch in ("E_offset", "E_sigma"):
-                n = dims
-            elif ch == "Db" and opts.get("Db", {}).get("val_type", "norm") == "discretize":
-                n = 11
-            else:
-                n = 1
-            outputs.append({"channel": ch, "count": n, "type": opts.get(ch, {}).get("type")})
+        # The channels of the raw prediction (per_image), in order: how many each one takes
+        names = instance_channel_names(inst.DATA_CHANNELS, opts, dims)
+        outputs = [
+            {"channel": ch, "count": sum(1 for c, _ in names if c == ch), "type": opts.get(ch, {}).get("type")}
+            for ch in dict.fromkeys(c for c, _ in names)
+        ]
         if out["n_classes"] > 2:
             outputs.append({"channel": "class", "count": out["n_classes"], "type": None})
         ws = inst.WATERSHED

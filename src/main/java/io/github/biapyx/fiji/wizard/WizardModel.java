@@ -187,7 +187,17 @@ public class WizardModel {
 			for (Question o : questions)
 				if (o.type == Type.MODEL_BIAPY || o.type == Type.MODEL_OTHERS) answered[o.index] = null;
 		}
+		// The test images of a tracking job are checked as the frames of a time-lapse
+		if (changed && key.equals(TRACKING)) answers.add("CHECKED DATA.TEST.PATH", UNSET);
 		updateVisibility();
+	}
+
+	private static final String TRACKING = "PROBLEM.TRACKING.ENABLE";
+
+	/** Whether the objects are tracked (answered so, and the question applies to the answers given). */
+	public boolean isTracking() {
+		int qi = questionFor(TRACKING);
+		return qi >= 0 && visible[qi] && new JsonPrimitive(true).equals(answers.get(TRACKING));
 	}
 
 	/** Removes the answer of a multiple-choice question (e.g. undoing an unconfirmed workflow choice). */
@@ -279,6 +289,8 @@ public class WizardModel {
 	public Object[] reusableCheck(int qi, String folder) {
 		String key = questions.get(qi).firstKey();
 		boolean target = key.contains("GT_PATH");
+		// The frames of a time-lapse have their own checks
+		if (key.equals("DATA.TEST.PATH") && isTracking()) return null;
 		if (!answers.has("data_constraints") || !answers.has("sample_info")) return null;
 		JsonObject dc = answers.getAsJsonObject("data_constraints"), si = answers.getAsJsonObject("sample_info");
 		for (String other : DATA_KEYS) {

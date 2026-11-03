@@ -194,7 +194,14 @@ final class WorkflowInfoDialog {
 			return "<li><i>per_image</i>: the model's raw prediction, the helper images described below.</li>"
 					+ "<li><i>per_image_instances</i>: the final objects, each with its own number (in Fiji, a lookup "
 					+ "table such as <i>glasbey</i> tells them apart). If there is a <i>per_image_post_processing</i> "
-					+ "folder, it has them after extra cleaning.</li>";
+					+ "folder, it has them after extra cleaning.</li>"
+					+ (info.has("tracking") && info.get("tracking").getAsBoolean()
+							? "<li><i>tracking</i>: the objects tracked over the time-lapse: the masks of each frame "
+									+ "(<i>mask000.tif</i>...), where each object keeps the number of its track in all "
+									+ "the frames, and the tracks in the Cell Tracking Challenge format (<i>res_track.txt"
+									+ "</i>: track number, first and last frame, and parent track when it comes from a "
+									+ "division) and as GEFF (<i>tracks.geff</i>).</li>"
+							: "");
 		case "DETECTION":
 			return "<li><i>per_image</i>: the model's raw prediction: how likely each pixel is to be the centre of an "
 					+ "object.</li><li><i>per_image_local_max_check</i>: the points found, as an image and as a table per "

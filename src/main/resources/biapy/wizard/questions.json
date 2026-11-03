@@ -57,10 +57,42 @@
     ]
    },
    "visible": true,
-   "help": "<p> This question determines the type of workflow you want to run. Each option corresponds to a workflow implemented in BiaPy. The options are: </p> <p> <strong>&#8226;&quot;Generate masks of different objects/regions within the image&quot;</strong>&nbsp; refers to the workflow called &quot;Semantic segmentation&quot;. The goal of this workflow is to assign a class to each pixel (or voxel) of the input image, thus producing a label image with semantic masks. The simplest case would be binary classification, as in the figure depicted below. There, only two labels are present in the label image: black pixels (usually with value 0) represent the background, and white pixels represent the foreground (the wound in this case, usually labeled with 1 or 255 value). </p> <p align='center'><img style='float:center;' src='{img:semantic_seg_collage.png}' width='200px'/></p> <br><p> Find more information about semantic segmentation workflow in <a href='https://biapy.readthedocs.io/en/latest/workflows/semantic_segmentation.html'>its documentation</a>. </p> <p> <strong>&#8226;&quot;Generate masks for each object in the image&quot;</strong>&nbsp;refers to the workflow called &quot;Instance segmentation&quot;. The goal of this workflow is to assign a unique ID, i.e. an integer value, to each object of the input image, thus producing a label image with instance masks. An example of this task is displayed in the figure below, with an electron microscopy image used as input (left) and its corresponding instance label image identifying each individual mitochondrion (right). Each color in the mask image corresponds to a unique object. </p> <p align='center'><img style='float:center;' src='{img:instance_seg_collage.png}' width='200px'/></p> <br><p>Find more information about instance segmentation workflow in <a href='https://biapy.readthedocs.io/en/latest/workflows/instance_segmentation.html'>its documentation</a>.</p> <p> <strong>&#8226;&quot;Identify circular objects (e.g. nuclei) in the image using points&quot;</strong>&nbsp;refers to the workflow called &quot;Detection&quot;. The goal of this workflow is to localize objects in the input image, not requiring a pixel-level class. Common strategies produce either bounding boxes containing the objects or individual points at their center of mass, which is the one adopted by BiaPy. </p> <p> An example of this task is displayed in the figure below (credits to <a href='https://zenodo.org/records/3715492#.Y4m7FjPMJH6'>Jukkala & Jacquemet</a>), with a fluorescence microscopy image used as input (left) and its corresponding nuclei detection results (right). Each red dot in the right image corresponds to a unique predicted object. </p> <p align='center'><img style='float:center;' src='{img:detection_collage.png}' width='200px'/></p> <br><p> Find more information about detection workflow in <a href='https://biapy.readthedocs.io/en/latest/workflows/detection.html'>its documentation</a>. </p> <p> <strong>&#8226;&quot;Clean noisy images&quot;</strong>&nbsp;refers to the workflow called &quot;Denoising&quot;. The goal of this workflow is to remove noise from the input images. BiaPy makes use of <a href='https://openaccess.thecvf.com/content_CVPR_2019/html/Krull_Noise2Void_-_Learning_Denoising_From_Single_Noisy_Images_CVPR_2019_paper.html'>Noise2Void</a> with any of the U-Net-like models provided. The main advantage of Noise2Void is neither relying on noise image pairs nor clean target images since frequently clean images are simply unavailable. If you do have clean versions of your noisy images, BiaPy can also use them as targets (supervised training): the Wizard will ask about it. </p> <p> An example of this task is displayed in the figure below, with an noisy fluorescence image and its corresponding denoised output. This image was obtained from a <a href='https://zenodo.org/record/5156913'>Convallaria dataset</a> used in <a href='https://openaccess.thecvf.com/content_CVPR_2019/html/Krull_Noise2Void_-_Learning_Denoising_From_Single_Noisy_Images_CVPR_2019_paper.html'>Noise2Void</a> project. </p> <p align='center'><img style='float:center;' src='{img:denoising_collage.png}' width='200px'/></p> <br><p> Find more information about denoising workflow in <a href='https://biapy.readthedocs.io/en/latest/workflows/denoising.html'>its documentation</a>. </p> <p> <strong>&#8226;&quot;Upsample images into higher resolution&quot;</strong>&nbsp;refers to the workflow called &quot;Super resolution&quot;. The goal of this workflow is to reconstruct high-resolution (HR) images from low-resolution (LR) ones. If there is a difference in the size of the LR and HR images, typically determined by a scale factor (x2, x4), this task is known as single-image super-resolution. If the size of the LR and HR images is the same, this task is usually referred to as image restoration. </p> <p> An example of this task is displayed in the figure below, with a LR fluorescence microscopy image used as input (left) and its corresponding HR image (x2 scale factor). Credits of this image to <a href='https://figshare.com/articles/dataset/BioSR/13264793'>F-actin dataset by Qiao et al</a>. </p> <p align='center'><img style='float:center;' src='{img:sr_collage.png}' width='200px'/></p> <br><p> Find more information about super-resolution workflow in <a href='https://biapy.readthedocs.io/en/latest/workflows/super_resolution.html'>its documentation</a>. </p> <p> <strong>&#8226;&quot;Assign a label to each image&quot;</strong>&nbsp;refers to the workflow called &quot;Classification&quot;. The goal of this workflow is to assign a label to the input image. In the figure below a few examples of this workflow's input are depicted where each image is classified as a result. Images obtained from <a href='https://medmnist.com/'>MedMNIST v2</a>, concretely from DermaMNIST dataset which is a large collection of multi-source dermatoscopic images of common pigmented skin lesions. </p> <p align='center'><img style='float:center;' src='{img:classification_collage.png}' width='200px'/></p> <br><p> Find more information about classification workflow in <a href='https://biapy.readthedocs.io/en/latest/workflows/classification.html'>its documentation</a>. </p> <p> <strong>&#8226;&quot;Generate new images based on an input one&quot;</strong>&nbsp;refers to the workflow called &quot;Image to image&quot;. The goal of this workflow aims at translating/mapping input images into target images. This workflow is as the super-resolution one but with no upsampling, e.g. with the scaling factor to x1. </p> <p> In the figure below an example of paired microscopy images (brightfield) is depicted. The images were obtained from <a href='https://lightmycells.grand-challenge.org/'>Light My Cells dataset</a>. </p> <p align='center'><img style='float:center;' src='{img:i2i_collage.png}' width='200px'/></p> <br><p> Find more information about image to image workflow in <a href='https://biapy.readthedocs.io/en/latest/workflows/image_to_image.html'>its documentation</a>. </p>"
+   "help": "<p> This question determines the type of workflow you want to run. Each option corresponds to a workflow implemented in BiaPy. The options are: </p> <p> <strong>&#8226;&quot;Generate masks of different objects/regions within the image&quot;</strong>&nbsp; refers to the workflow called &quot;Semantic segmentation&quot;. The goal of this workflow is to assign a class to each pixel (or voxel) of the input image, thus producing a label image with semantic masks. The simplest case would be binary classification, as in the figure depicted below. There, only two labels are present in the label image: black pixels (usually with value 0) represent the background, and white pixels represent the foreground (the wound in this case, usually labeled with 1 or 255 value). </p> <p align='center'><img style='float:center;' src='{img:semantic_seg_collage.png}' width='200px'/></p> <br><p> Find more information about semantic segmentation workflow in <a href='https://biapy.readthedocs.io/en/latest/workflows/semantic_segmentation.html'>its documentation</a>. </p> <p> <strong>&#8226;&quot;Generate masks for each object in the image&quot;</strong>&nbsp;refers to the workflow called &quot;Instance segmentation&quot;. The goal of this workflow is to assign a unique ID, i.e. an integer value, to each object of the input image, thus producing a label image with instance masks. An example of this task is displayed in the figure below, with an electron microscopy image used as input (left) and its corresponding instance label image identifying each individual mitochondrion (right). Each color in the mask image corresponds to a unique object. </p> <p align='center'><img style='float:center;' src='{img:instance_seg_collage.png}' width='200px'/></p> <br><p> If your images are the frames of a time-lapse, the objects can also be <strong>tracked</strong> over time: the next question asks about it. </p> <p>Find more information about instance segmentation workflow in <a href='https://biapy.readthedocs.io/en/latest/workflows/instance_segmentation.html'>its documentation</a>.</p> <p> <strong>&#8226;&quot;Identify circular objects (e.g. nuclei) in the image using points&quot;</strong>&nbsp;refers to the workflow called &quot;Detection&quot;. The goal of this workflow is to localize objects in the input image, not requiring a pixel-level class. Common strategies produce either bounding boxes containing the objects or individual points at their center of mass, which is the one adopted by BiaPy. </p> <p> An example of this task is displayed in the figure below (credits to <a href='https://zenodo.org/records/3715492#.Y4m7FjPMJH6'>Jukkala & Jacquemet</a>), with a fluorescence microscopy image used as input (left) and its corresponding nuclei detection results (right). Each red dot in the right image corresponds to a unique predicted object. </p> <p align='center'><img style='float:center;' src='{img:detection_collage.png}' width='200px'/></p> <br><p> Find more information about detection workflow in <a href='https://biapy.readthedocs.io/en/latest/workflows/detection.html'>its documentation</a>. </p> <p> <strong>&#8226;&quot;Clean noisy images&quot;</strong>&nbsp;refers to the workflow called &quot;Denoising&quot;. The goal of this workflow is to remove noise from the input images. BiaPy makes use of <a href='https://openaccess.thecvf.com/content_CVPR_2019/html/Krull_Noise2Void_-_Learning_Denoising_From_Single_Noisy_Images_CVPR_2019_paper.html'>Noise2Void</a> with any of the U-Net-like models provided. The main advantage of Noise2Void is neither relying on noise image pairs nor clean target images since frequently clean images are simply unavailable. If you do have clean versions of your noisy images, BiaPy can also use them as targets (supervised training): the Wizard will ask about it. </p> <p> An example of this task is displayed in the figure below, with an noisy fluorescence image and its corresponding denoised output. This image was obtained from a <a href='https://zenodo.org/record/5156913'>Convallaria dataset</a> used in <a href='https://openaccess.thecvf.com/content_CVPR_2019/html/Krull_Noise2Void_-_Learning_Denoising_From_Single_Noisy_Images_CVPR_2019_paper.html'>Noise2Void</a> project. </p> <p align='center'><img style='float:center;' src='{img:denoising_collage.png}' width='200px'/></p> <br><p> Find more information about denoising workflow in <a href='https://biapy.readthedocs.io/en/latest/workflows/denoising.html'>its documentation</a>. </p> <p> <strong>&#8226;&quot;Upsample images into higher resolution&quot;</strong>&nbsp;refers to the workflow called &quot;Super resolution&quot;. The goal of this workflow is to reconstruct high-resolution (HR) images from low-resolution (LR) ones. If there is a difference in the size of the LR and HR images, typically determined by a scale factor (x2, x4), this task is known as single-image super-resolution. If the size of the LR and HR images is the same, this task is usually referred to as image restoration. </p> <p> An example of this task is displayed in the figure below, with a LR fluorescence microscopy image used as input (left) and its corresponding HR image (x2 scale factor). Credits of this image to <a href='https://figshare.com/articles/dataset/BioSR/13264793'>F-actin dataset by Qiao et al</a>. </p> <p align='center'><img style='float:center;' src='{img:sr_collage.png}' width='200px'/></p> <br><p> Find more information about super-resolution workflow in <a href='https://biapy.readthedocs.io/en/latest/workflows/super_resolution.html'>its documentation</a>. </p> <p> <strong>&#8226;&quot;Assign a label to each image&quot;</strong>&nbsp;refers to the workflow called &quot;Classification&quot;. The goal of this workflow is to assign a label to the input image. In the figure below a few examples of this workflow's input are depicted where each image is classified as a result. Images obtained from <a href='https://medmnist.com/'>MedMNIST v2</a>, concretely from DermaMNIST dataset which is a large collection of multi-source dermatoscopic images of common pigmented skin lesions. </p> <p align='center'><img style='float:center;' src='{img:classification_collage.png}' width='200px'/></p> <br><p> Find more information about classification workflow in <a href='https://biapy.readthedocs.io/en/latest/workflows/classification.html'>its documentation</a>. </p> <p> <strong>&#8226;&quot;Generate new images based on an input one&quot;</strong>&nbsp;refers to the workflow called &quot;Image to image&quot;. The goal of this workflow aims at translating/mapping input images into target images. This workflow is as the super-resolution one but with no upsampling, e.g. with the scaling factor to x1. </p> <p> In the figure below an example of paired microscopy images (brightfield) is depicted. The images were obtained from <a href='https://lightmycells.grand-challenge.org/'>Light My Cells dataset</a>. </p> <p align='center'><img style='float:center;' src='{img:i2i_collage.png}' width='200px'/></p> <br><p> Find more information about image to image workflow in <a href='https://biapy.readthedocs.io/en/latest/workflows/image_to_image.html'>its documentation</a>. </p>"
   },
   {
    "id": "Q3",
+   "section": 0,
+   "toc": "Tracking",
+   "text": "Are your images the frames of a time-lapse whose objects you want to track over time?",
+   "type": "choice",
+   "answers": [
+    "No",
+    "Yes, segment each frame and track the objects across frames"
+   ],
+   "map": {
+    "PROBLEM.TRACKING.ENABLE": [
+     false,
+     true
+    ]
+   },
+   "visible": false,
+   "condition": {
+    "and_cond": [
+     [
+      "PROBLEM.TYPE",
+      "INSTANCE_SEG"
+     ],
+     [
+      "TEST.ANALIZE_2D_IMGS_AS_3D_STACK",
+      false
+     ]
+    ],
+    "or_cond": []
+   },
+   "help": "<p> Instance segmentation can also <strong>track</strong> the objects of a time-lapse: each frame is segmented as usual and then the objects of consecutive frames are linked, so each object keeps the same number in all the frames where it appears and cell divisions are detected. The linking is done by <a href='https://github.com/weigertlab/trackastra'>Trackastra</a> {ref:trackastra}, a pretrained model that does not need to be trained on your data: in 2D its general model for live-cell images, in 3D its model trained on the Cell Tracking Challenge datasets. </p> <p align='center'><img style='float:center;' src='{img:tracking_bacteria.gif}' width='300px'/></p> <p> If you answer <i>Yes</i>: </p> <ul> <li><p>The training, if any, is the usual one of instance segmentation: raw images and their instance masks (e.g. some frames of your time-lapses). No tracks are needed.</p></li> <li><p>The <strong>test</strong> folder must hold <strong>one time-lapse</strong>: one image per frame, single-channel and all of the same size, in time order when sorted by file name (e.g. <i>t000.tif, t001.tif, ...</i>). A time-lapse opened in Fiji can be saved like that with File &gt; Save As &gt; Image Sequence... Run one job per time-lapse.</p></li> <li><p>The objects are tracked in the test phase, so the job must test the model (a training-only job just trains it).</p></li> <li><p>The tracks are saved in the <i>tracking</i> folder of the results: the masks of each frame, numbered by track (<i>mask000.tif, mask001.tif, ...</i>), and the tracks themselves in the <a href='https://celltrackingchallenge.net'>Cell Tracking Challenge</a> format (<i>res_track.txt</i>) and as <a href='https://live-image-tracking-tools.github.io/geff/'>GEFF</a> (<i>tracks.geff</i>).</p></li> </ul>"
+  },
+  {
+   "id": "Q4",
    "section": 0,
    "toc": "Model source",
    "text": "Do you want to use a pre-trained model?",
@@ -91,7 +123,7 @@
    "help": "<p> This question determines how the deep learning model will be built. Based on your choice, additional questions may appear to guide the model setup process. </p> <p> Before using a deep learning model, it must be trained. The idea is to train the model on a specific task and then apply it to new images. For example, you could train a model to classify images based on their labels. If the training is successful, the model should be able to classify new images automatically. </p> <p> Training is a crucial step to ensure good results, but it requires labeled data, also known as 'ground truth'. Using the image classification example, you would need to label the training images first, like 'image1.png' as class 1, 'image2.png' as class 2, etc. Because training can be time-consuming, using a pre-trained model can be a major advantage. A pre-trained model has already been trained on a dataset and has some level of knowledge. </p> <p> If your images are similar to those used to train the pre-trained model, you might get good results without retraining it. If not, having similar images will at least make the retraining process faster and require fewer images. That's why it’s always a good idea to check for available pre-trained models that match your needs. Here are the options available: </p> <ul> <li> <p><strong>'No, I want to build a model from scratch'</strong>&nbsp; This option configures BiaPy to create a model from the ground up. No additional input will be required, and BiaPy will automatically configure the model based on the selected workflow and image dimensions.</p> </li> <li> <p><strong>'Yes, I have a model previously trained in BiaPy'</strong>&nbsp; Choose this option if you already have a model trained with BiaPy. The model must be stored in the folder you’ve selected for saving results, specifically in the 'checkpoints' folder, as a file with a '.pth' extension. You’ll need to specify this file when prompted after selecting this option.</p> </li> <li> <p><strong>'Yes, I want to check if there is a pretrained model I can use'</strong>&nbsp; This option allows you to load a pre-trained model from an external source. Currently, BiaPy supports loading models from the <a href='https://bioimage.io/#/'>BioImage Model Zoo</a>. Depending on the workflow and image dimensions, you can search for compatible models to use.</p> </li> </ul>"
   },
   {
-   "id": "Q4",
+   "id": "Q5",
    "section": 0,
    "toc": "Path to model",
    "text": "Please select the pretrained model trained with BiaPy before:",
@@ -117,7 +149,7 @@
    }
   },
   {
-   "id": "Q5",
+   "id": "Q6",
    "section": 0,
    "toc": "Select model",
    "text": "Please select a pretrained model by pressing 'Check models' below. This process requires internet connection and may take a while.",
@@ -162,7 +194,7 @@
    }
   },
   {
-   "id": "Q6",
+   "id": "Q7",
    "section": 1,
    "toc": "Phases",
    "text": "What do you want to do?",
@@ -213,10 +245,10 @@
    },
    "help": "<p>BiaPy can train a denoising model in two ways:</p><ul><li><p><strong>'No, I only have the noisy images'</strong>: self-supervised training with Noise2Void. Only the noisy images are needed, which is useful because clean images are frequently unavailable.</p></li><li><p><strong>'Yes, I have clean target images'</strong>: supervised training. Each noisy image has a clean version of the same field of view and size, used as the target to learn from. This usually gives better results. The Wizard will ask for the folder with the clean images: they are paired with the noisy ones by file name order, so both folders must contain the same number of images.</p></li></ul>",
    "section": 1,
-   "id": "Q7"
+   "id": "Q8"
   },
   {
-   "id": "Q8",
+   "id": "Q9",
    "toc": "Training length",
    "text": "How long should the training be?",
    "type": "choice",
@@ -244,7 +276,7 @@
    "section": 1
   },
   {
-   "id": "Q9",
+   "id": "Q10",
    "section": 1,
    "toc": "Train data (raw)",
    "text": "Could you please specify the location of the training raw image folder? After that, click on the 'Check data' button to analyze the data.",
@@ -266,7 +298,7 @@
    }
   },
   {
-   "id": "Q10",
+   "id": "Q11",
    "section": 1,
    "toc": "Train target (ground truth)",
    "text": "Could you please specify the location of the training ground truth (target) folder? After that, click on the 'Check data' button to analyze the data.",
@@ -320,7 +352,7 @@
    }
   },
   {
-   "id": "Q11",
+   "id": "Q12",
    "section": 1,
    "toc": "Instance representation",
    "text": "How should the network represent the instances? The options shown suit the shape of the instances in your training masks.",
@@ -407,7 +439,7 @@
    "help": "<p>Instance segmentation networks do not predict the instances directly but an intermediate <strong>representation</strong> of them (e.g. their foreground and contours), from which the instances are built afterwards. Which one works best depends on the shape of the instances.</p><p>When the training masks were checked, the shape of their instances was measured (size, convexity, elongation, branching, how often they touch each other and whether they are star-convex, i.e. every point sees their center in a straight line). Only the representations that suit them are offered, and the recommended one is marked. The others are listed after them with the reason why they are not offered.</p><ul><li><strong>Foreground + contour</strong>: works for any shape, the contours separate touching instances.</li><li><strong>Foreground + central point</strong> / <strong>distance to the border</strong>: compact, roundish instances, marked by a single point or distance peak.</li><li><strong>Foreground + skeleton</strong>: elongated, thin or branched instances.</li><li><strong>StarDist</strong>: star-convex instances, e.g. nuclei, even when crowded.</li><li><strong>Cellpose</strong> flows: irregular, crowded cells.</li><li><strong>HoVer-Net</strong>: compact instances such as nuclei in histology images.</li><li><strong>Affinities</strong>: dense 3D instances that fill the volume, such as neurons in electron microscopy.</li></ul>"
   },
   {
-   "id": "Q12",
+   "id": "Q13",
    "section": 1,
    "toc": "Test data (raw)",
    "text": "Could you please specify the location of the test raw image folder? After that, click on the 'Check data' button to analyze the data.",
@@ -429,7 +461,7 @@
    }
   },
   {
-   "id": "Q13",
+   "id": "Q14",
    "section": 1,
    "toc": "Test target data availability",
    "text": "Do you have test ground truth (target) data?",
@@ -489,7 +521,7 @@
    }
   },
   {
-   "id": "Q14",
+   "id": "Q15",
    "section": 1,
    "toc": "Test target (ground truth)",
    "text": "Could you please specify the location of the test ground truth (target) folder? After that, click on the 'Check data' button to analyze the data.",

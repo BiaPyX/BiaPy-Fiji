@@ -391,7 +391,10 @@ public class WizardPanel extends JPanel {
 			page.revalidate();
 			pageScroll.getViewport().setViewPosition(new java.awt.Point(0, 0));
 		});
-		questionText.setText(q.text);
+		questionText.setText(q.type == Type.PATH && "DATA.TEST.PATH".equals(q.firstKey()) && model.isTracking()
+				? q.text + " As the objects are tracked, the folder must hold one time-lapse: one image per frame, in "
+						+ "time order when sorted by file name."
+				: q.text);
 		helpPane.setText(UiUtils.htmlPage(resolveImages(q.help)));
 
 		answerArea.removeAll();
@@ -878,6 +881,7 @@ public class WizardPanel extends JPanel {
 		args.addProperty("workflow", model.getAnswer("PROBLEM.TYPE").getAsString());
 		args.addProperty("ndim", model.getAnswer("PROBLEM.NDIM").getAsString());
 		args.addProperty("data_path", dataPath);
+		args.addProperty("tracking", model.isTracking());
 		boolean isTarget = q.firstKey().contains("GT_PATH");
 		boolean train = q.firstKey().contains("TRAIN");
 		String title = (train ? "Training" : "Test") + (isTarget ? " targets" : " data");

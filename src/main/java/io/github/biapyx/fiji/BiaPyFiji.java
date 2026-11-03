@@ -17,7 +17,7 @@ public final class BiaPyFiji {
 	/** Oldest BiaPy version with the wizard's logic the plugin uses (offered for installation). */
 	public static final String BIAPY_MIN_VERSION;
 	/** Version of BiaPy's wizard interface (biapy.wizard.API_VERSION) the plugin is written for. */
-	public static final int WIZARD_API = 1;
+	public static final int WIZARD_API = 2;
 
 	static {
 		Properties p = new Properties();
@@ -29,8 +29,8 @@ public final class BiaPyFiji {
 		String v = p.getProperty("plugin.version", "dev");
 		// Without Maven's "-SNAPSHOT" (development builds): users only need the version number
 		PLUGIN_VERSION = v.startsWith("${") ? "dev" : v.replaceFirst("-SNAPSHOT$", "");
-		BIAPY_VERSION = p.getProperty("biapy.version", "3.7.2");
-		BIAPY_MIN_VERSION = p.getProperty("biapy.min_version", "3.7.2");
+		BIAPY_VERSION = p.getProperty("biapy.version", "3.7.3");
+		BIAPY_MIN_VERSION = p.getProperty("biapy.min_version", "3.7.3");
 	}
 
 	/**

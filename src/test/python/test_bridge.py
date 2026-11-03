@@ -37,10 +37,16 @@ def test_serve(tmp_path):
     folder.mkdir()
     for i in range(3):
         tifffile.imwrite(str(folder / "{}.tif".format(i)), np.zeros((32, 32), np.uint8))
+    one = tmp_path / "one"
+    one.mkdir()
+    tifffile.imwrite(str(one / "stack.tif"), np.zeros((32, 32), np.uint8))
     requests = [
         {"command": "check_data", "args": {"folder": str(folder), "key": "DATA.TRAIN.PATH", "workflow": "SEMANTIC_SEG", "ndim": "2D"}},
         {"command": "check_data", "args": {"folder": str(tmp_path / "nope"), "key": "DATA.TRAIN.PATH", "workflow": "SEMANTIC_SEG", "ndim": "2D"}},
         {"command": "unknown", "args": {}},
+        # A time-lapse to track: its frames (one file per frame), and a folder with a single file
+        {"command": "check_data", "args": {"folder": str(folder), "key": "DATA.TEST.PATH", "workflow": "INSTANCE_SEG", "ndim": "2D", "tracking": True}},
+        {"command": "check_data", "args": {"folder": str(one), "key": "DATA.TEST.PATH", "workflow": "INSTANCE_SEG", "ndim": "2D", "tracking": True}},
     ]
     out = subprocess.run(
         [sys.executable, BRIDGE, "serve"],
@@ -48,8 +54,10 @@ def test_serve(tmp_path):
         capture_output=True, text=True, timeout=300,
     ).stdout
     results = [json.loads(line[len(RESULT_PREFIX):]) for line in out.splitlines() if line.startswith(RESULT_PREFIX)]
-    assert len(results) == 3  # one per request, the process survives errors
+    assert len(results) == 5  # one per request, the process survives errors
     assert results[0]["ok"] and not results[0]["result"]["error"]
     assert results[0]["result"]["data_constraints"]["DATA.TRAIN.PATH"] == 3
     assert results[1]["ok"] and results[1]["result"]["error"]
     assert not results[2]["ok"]
+    assert not results[3]["result"]["error"]
+    assert "one image per frame" in results[4]["result"]["error_message"]

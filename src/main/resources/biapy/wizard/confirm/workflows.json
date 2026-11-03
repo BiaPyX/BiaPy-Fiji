@@ -9,7 +9,8 @@
   "medmnist": "DermaMNIST dataset of MedMNIST v2: <a href='https://medmnist.com/'>https://medmnist.com/</a>.",
   "lightmycells": "Light My Cells challenge dataset: <a href='https://lightmycells.grand-challenge.org/'>https://lightmycells.grand-challenge.org/</a>.",
   "conic": "CoNIC challenge: <a href='https://conic-challenge.grand-challenge.org/'>https://conic-challenge.grand-challenge.org/</a>.",
-  "n2v": "Krull, Alexander, Tim-Oliver Buchholz, and Florian Jug. &quot;Noise2Void - Learning Denoising From Single Noisy Images.&quot; <i>Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)</i>, 2019."
+  "n2v": "Krull, Alexander, Tim-Oliver Buchholz, and Florian Jug. &quot;Noise2Void - Learning Denoising From Single Noisy Images.&quot; <i>Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)</i>, 2019.",
+  "trackastra": "Gallusser, Benjamin, and Martin Weigert. &quot;Trackastra: Transformer-based cell tracking for live-cell microscopy.&quot; <i>European Conference on Computer Vision (ECCV)</i>, 2024. Bacteria data: van Vliet et al., <i>Cell Systems</i>, 2018."
  },
  "shared": {
   "sem_inst_det": [
@@ -84,6 +85,17 @@
       }
      ],
      "width": 420
+    },
+    {
+     "note": "<b>Tracking.</b> If your images are the frames of a time-lapse, this workflow can also <b>track</b> the objects over time: it segments each frame and links the objects of consecutive frames, so each one keeps its number along the time-lapse and cell divisions are detected. The wizard asks about it next."
+    },
+    {
+     "images": [
+      {
+       "file": "tracking_bacteria.gif"
+      }
+     ],
+     "width": 300
     },
     {
      "shared": "sem_inst_det"
@@ -196,6 +208,7 @@
   "classification_collage.png": "Dermatoscopic images of skin lesions, each one assigned to a class {ref:medmnist}.",
   "i2i_collage.png": "Left: brightfield image (input). Right: the paired fluorescence image where the nuclei are highlighted (target) {ref:lightmycells}.",
   "confirm/sem_inst_det_workflow_diff.jpg": "Top left: original image. <b>Semantic segmentation</b> (top right): one mask per class, dog (red) and sheep (blue); the three sheep merge into a single region. <b>Detection</b> (bottom left): each animal is located, here with a box (BiaPy marks the center of each object with a point instead), but its shape is not delineated. <b>Instance segmentation</b> (bottom right): each animal has its own mask, even where they overlap {ref:sheep}.",
-  "confirm/instance_seg_multichannel.gif": "Instances with classes. Left: histology image (input) from the CoNIC challenge {ref:conic}. Right, alternating: its label image with the instance masks (channel 0) and with the class of each instance (channel 1)."
+  "confirm/instance_seg_multichannel.gif": "Instances with classes. Left: histology image (input) from the CoNIC challenge {ref:conic}. Right, alternating: its label image with the instance masks (channel 0) and with the class of each instance (channel 1).",
+  "tracking_bacteria.gif": "Bacteria tracked by Trackastra: the path of each cell over time (time goes up), with its links in green when correct, magenta when wrong (false positives) and cyan when missed (false negatives) {ref:trackastra}."
  }
 }
