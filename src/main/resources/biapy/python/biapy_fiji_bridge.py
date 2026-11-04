@@ -242,6 +242,11 @@ def supported_answers(answers):
     return answers
 
 
+# Zoo models whose packaged ResUNet_SE builds Squeeze-and-Excitation blocks that its forward never uses, so their
+# parameters get no gradient and DDP training fails unless it looks for unused parameters
+BMZ_MODELS_WITH_UNUSED_PARAMETERS = {"committed-octopus", "demanding-dromedary", "gorgeous-whale", "venomous-swan"}
+
+
 def cmd_build_config(args):
     """Configuration file from the wizard's answers, adapted to the data (biapy.wizard.config_builder)."""
     wizard()
@@ -252,6 +257,9 @@ def cmd_build_config(args):
         cfg, report = build_config(args["answers"], args.get("gpus"))
     except WizardError as e:
         return {"error": True, "error_message": str(e)}
+    model = cfg.get("MODEL", {})
+    if model.get("SOURCE") == "bmz" and model.get("BMZ", {}).get("SOURCE_MODEL_ID") in BMZ_MODELS_WITH_UNUSED_PARAMETERS:
+        model["FIND_UNUSED_PARAMETERS"] = True
     if report["applied"]:
         log("Configuration adapted to the data:")
     else:
