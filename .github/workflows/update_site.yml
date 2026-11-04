@@ -1,0 +1,42 @@
+# Uploads the plugin's jar to the BiaPy update site of Fiji (https://sites.imagej.net/BiaPyX/) on every release.
+# Needs the repository secret UPDATE_SITE_PASSWORD (upload password of the danifranco account on sites.imagej.net).
+
+name: Upload to the Fiji update site
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'zulu'
+        cache: 'maven'
+
+    - name: Build the jar
+      run: mvn -B package -DskipTests
+
+    - name: Check that the release tag matches the version in pom.xml
+      run: |
+        JAR=target/biapy-fiji-${GITHUB_REF_NAME#v}.jar
+        [ -f "$JAR" ] || { echo "::error::Release $GITHUB_REF_NAME doesn't match the version in pom.xml ($(ls target/*.jar))"; exit 1; }
+
+    # The Updater refuses to upload a jar whose dependencies are newer than the publishing Fiji's own files
+    - name: Download and update Fiji
+      run: |
+        curl -fsSL --retry 5 -o fiji.zip https://downloads.imagej.net/fiji/stable/fiji-stable-linux64-jdk.zip
+        unzip -q fiji.zip
+        (cd Fiji.app && ./ImageJ-linux64 --headless --update update)
+
+    - name: Upload to the update site
+      env:
+        UPDATE_SITE_USER: danifranco
+        UPDATE_SITE_URL: https://sites.imagej.net/BiaPyX/
+        UPDATE_SITE_PASSWORD: ${{ secrets.UPDATE_SITE_PASSWORD }}
+      run: scripts/upload_update_site.sh Fiji.app
