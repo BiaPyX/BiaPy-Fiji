@@ -195,7 +195,7 @@ final class WorkflowInfoDialog {
 					+ "<li><i>per_image_instances</i>: the final objects, each with its own number (in Fiji, a lookup "
 					+ "table such as <i>glasbey</i> tells them apart). If there is a <i>per_image_post_processing</i> "
 					+ "folder, it has them after extra cleaning.</li>"
-					+ (info.has("tracking") && info.get("tracking").getAsBoolean()
+					+ (info != null && info.has("tracking") && info.get("tracking").getAsBoolean()
 							? "<li><i>tracking</i>: the objects tracked over the time-lapse: the masks of each frame "
 									+ "(<i>mask000.tif</i>...), where each object keeps the number of its track in all "
 									+ "the frames, and the tracks in the Cell Tracking Challenge format (<i>res_track.txt"
