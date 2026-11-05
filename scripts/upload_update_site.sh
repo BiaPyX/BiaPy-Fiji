@@ -18,6 +18,8 @@
 set -euo pipefail
 
 FIJI=${1:?Usage: UPDATE_SITE_PASSWORD=... $0 <path to Fiji.app> [--simulate]}
+# Absolute, as the Updater runs from inside Fiji.app
+FIJI=$(cd "$FIJI" && pwd)
 SIMULATE=${2:-}
 SITE=${UPDATE_SITE:-BiaPy}
 USER_NAME=${UPDATE_SITE_USER:-BiaPyX}
