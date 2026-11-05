@@ -227,6 +227,10 @@ public class WizardPanel extends JPanel {
 				// Rebuilding the tree inside its own selection event is unsafe
 				SwingUtilities.invokeLater(() -> {
 					readCurrentAnswer();
+					if ((target > model.getCurrent() && !dataCheckedOrWarn()) || !mayEnter(target)) {
+						selectInToc(model.getCurrent());
+						return;
+					}
 					// Leaving the workflow question through the list also needs the confirmation
 					if (!confirmWorkflowOnLeave(target < model.getCurrent())) {
 						selectInToc(model.getCurrent());
@@ -249,7 +253,6 @@ public class WizardPanel extends JPanel {
 			model.clear();
 			previews.clear();
 			confirmedWorkflow = null;
-			pretrainedSuggestedKey = null;
 			rebuildToc();
 			showQuestion(0);
 		});
@@ -318,15 +321,16 @@ public class WizardPanel extends JPanel {
 			confirmWorkflowOnLeave(true);
 			int prev = model.previousIndex();
 			if (prev < 0) pages.show(pagePanel, START);
-			else showQuestion(prev);
+			else if (mayEnter(prev)) showQuestion(prev);
 		});
 		nextBtn.addActionListener(e -> {
 			readCurrentAnswer();
+			if (!dataCheckedOrWarn()) return;
 			if (!confirmWorkflowOnLeave(false)) return; // the user wants to change the workflow
 			int next = model.nextIndex();
 			if (next >= model.size()) {
-				if (!suggestPretrainedModels()) prepareSummary();
-			} else {
+				prepareSummary();
+			} else if (mayEnter(next)) {
 				showQuestion(next);
 			}
 		});
@@ -367,6 +371,35 @@ public class WizardPanel extends JPanel {
 		return true;
 	}
 
+	/**
+	 * Checking the data is mandatory: a folder question can't be left forward (it can backward) before its data is
+	 * checked.
+	 */
+	private boolean dataCheckedOrWarn() {
+		Question q = model.getQuestion(model.getCurrent());
+		if (q.type != Type.PATH || model.isDataChecked(q)) return true;
+		UiUtils.info(this, "Please select the folder and click 'Check data' before continuing: the data must be checked.");
+		return false;
+	}
+
+	/**
+	 * The Model Zoo models are listed for the data (e.g. its number of channels): their question can't be shown before
+	 * the phases are answered and the data of every folder asked is checked.
+	 */
+	private boolean mayEnter(int target) {
+		if (model.getQuestion(target).type != Type.MODEL_OTHERS) return true;
+		List<String> missing = new ArrayList<>();
+		int phases = model.questionFor("TRAIN.ENABLE");
+		if (phases >= 0 && model.getAnswered(phases) == null) missing.add("answer '" + model.getQuestion(phases).toc + "'");
+		for (Question o : model.getQuestions())
+			if (o.type == Type.PATH && model.isVisible(o.index) && !model.isDataChecked(o))
+				missing.add("check the data of '" + o.toc + "'");
+		if (missing.isEmpty()) return true;
+		UiUtils.info(this, "The pretrained models are listed for your data. Before choosing one, please "
+				+ String.join(", ", missing) + ".");
+		return false;
+	}
+
 	/** The widget holding the answer of the question being shown (to read text fields when moving away). */
 	private JTextField currentTextField;
 
@@ -375,10 +408,6 @@ public class WizardPanel extends JPanel {
 		Question q = model.getQuestion(model.getCurrent());
 		if (q.type == Type.PATH) model.setPath(q.index, currentTextField.getText());
 		else if (q.type == Type.MODEL_BIAPY) model.setModel(q.index, currentTextField.getText());
-		else if (q.type == Type.MODEL_OTHERS) {
-			String t = currentTextField.getText().trim();
-			if (!t.isEmpty() && !t.equals(model.getAnswered(q.index))) model.setModel(q.index, t);
-		}
 		rebuildToc();
 	}
 
@@ -676,12 +705,13 @@ public class WizardPanel extends JPanel {
 		p.add(browse, c);
 		JButton check = UiUtils.primaryButton("Check data",
 				"Read the images of the folder to check them and see examples; their sizes and values guide the configuration");
+		BeaconFrame checkFrame = new BeaconFrame(check);
 		c.gridx = 0;
 		c.gridy = 1;
 		c.gridwidth = 2;
 		c.anchor = GridBagConstraints.CENTER;
-		c.insets = new Insets(10, 0, 4, 0);
-		p.add(check, c);
+		c.insets = new Insets(3, 0, 0, 0); // the frame's halo takes the rest of the space
+		p.add(checkFrame, c);
 		// Plain text: an HTML label would keep the width of its previous text and wrap the new one
 		JLabel status = new JLabel();
 		status.setFont(status.getFont().deriveFont(Font.BOLD));
@@ -696,6 +726,10 @@ public class WizardPanel extends JPanel {
 			status.setText(!ok ? "\u2191 Data not checked yet!"
 					: labels.isEmpty() ? "Data checked!" : "Data checked! (targets: '" + labels + "' of the OME-Zarr images)");
 			status.setForeground(ok ? BiaPyFiji.GREEN : BiaPyFiji.RED);
+			// A folder is set but not checked: the button glows until it is
+			boolean pending = !ok && !field.getText().trim().isEmpty();
+			if (pending && !checkFrame.isGlowing()) checkFrame.startGlow();
+			else if (!pending) checkFrame.stopGlow();
 		};
 		refresh.run();
 		field.getDocument().addDocumentListener(new SimpleDocListener(refresh));
@@ -703,7 +737,11 @@ public class WizardPanel extends JPanel {
 			File f = UiUtils.chooseDirectory(this, field.getText());
 			if (f != null) field.setText(f.getAbsolutePath());
 		});
-		check.addActionListener(e -> checkData(q, field.getText(), refresh, ""));
+		check.addActionListener(e -> {
+			checkFrame.stopGlow();
+			checkData(q, field.getText(), refresh, "");
+			refresh.run();
+		});
 		// Targets stored in the raw OME-Zarr images, as their label images (e.g. the ground truth)
 		String rawKey = "DATA." + phase + ".PATH";
 		String raw = model.checkedFolder(rawKey);
@@ -739,9 +777,9 @@ public class WizardPanel extends JPanel {
 		row.setOpaque(false);
 		JTextField field = new JTextField(model.getAnswered(q.index) == null ? "" : model.getAnswered(q.index).toString());
 		currentTextField = field;
-		row.add(field, BorderLayout.CENTER);
-		p.add(row, BorderLayout.NORTH);
 		if (q.type == Type.MODEL_BIAPY) {
+			row.add(field, BorderLayout.CENTER);
+			p.add(row, BorderLayout.NORTH);
 			JButton browse = UiUtils.secondaryButton("Browse", "Choose the checkpoint of a model trained with BiaPy");
 			browse.addActionListener(e -> {
 				File f = UiUtils.chooseFile(this, field.getText(), "BiaPy checkpoint (*.pth, *.safetensors)", "pth",
@@ -754,15 +792,46 @@ public class WizardPanel extends JPanel {
 			});
 			row.add(browse, BorderLayout.EAST);
 		} else {
+			// The model chosen, shown as text: it is chosen from the list below
+			currentTextField = null;
 			field.setEditable(false);
-			JButton check = UiUtils.primaryButton("Check models",
-					"Look for pretrained models of the BioImage Model Zoo that BiaPy can use for this workflow");
-			row.add(check, BorderLayout.EAST);
+			field.setFocusable(false);
+			field.setOpaque(false);
+			field.setBorder(BorderFactory.createEmptyBorder());
+			field.setFont(field.getFont().deriveFont(Font.BOLD, 14f));
+			field.setForeground(BiaPyFiji.BLUE);
+			JPanel selectedRow = new JPanel(new BorderLayout(8, 0));
+			selectedRow.setOpaque(false);
+			selectedRow.add(UiUtils.title("Model selected:", 14f), BorderLayout.WEST);
+			selectedRow.add(field, BorderLayout.CENTER);
+			JButton find = UiUtils.primaryButton("Find models",
+					"Look for pretrained models of the BioImage Model Zoo that BiaPy can use for this workflow and data");
+			JPanel findRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+			findRow.setOpaque(false);
+			findRow.add(find);
+			JPanel top = new JPanel(new BorderLayout(0, 10));
+			top.setOpaque(false);
+			top.add(selectedRow, BorderLayout.NORTH);
+			top.add(findRow, BorderLayout.CENTER);
+			p.add(top, BorderLayout.NORTH);
+
+			// The list of models, with the search at its top right
+			JTextField words = new JTextField(modelSearchText, 16);
+			words.setToolTipText("<html>Search the models: words separated by spaces, e.g. <i>cellpose dino</i>. Only the models "
+					+ "with all of them in their nickname, name or tags are shown (upper or lower case does not matter)</html>");
+			JPanel searchRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+			searchRow.setOpaque(false);
+			searchRow.add(new JLabel(MAGNIFIER));
+			searchRow.add(words);
 			JPanel cards = new WidthTrackingPanel();
 			cards.setLayout(new BoxLayout(cards, BoxLayout.Y_AXIS));
 			cards.setBackground(BiaPyFiji.WHITE);
-			cards.setBorder(BorderFactory.createTitledBorder("Compatible pretrained models from the BioImage Model Zoo"));
-			p.add(cards, BorderLayout.CENTER);
+			JPanel box = new JPanel(new BorderLayout(0, 4));
+			box.setBackground(BiaPyFiji.WHITE);
+			box.setBorder(BorderFactory.createTitledBorder("Compatible pretrained models from the BioImage Model Zoo"));
+			box.add(searchRow, BorderLayout.NORTH);
+			box.add(cards, BorderLayout.CENTER);
+			p.add(box, BorderLayout.CENTER);
 			// Keep the models found while the workflow and dimensions stay the same
 			if (modelsKey().equals(foundModelsKey)) fillModelCards(q, field, cards);
 			// The descriptions are wrapped to the width of the list: rebuild them when it changes
@@ -776,70 +845,56 @@ public class WizardPanel extends JPanel {
 					if (modelsKey().equals(foundModelsKey)) fillModelCards(q, field, cards);
 				}
 			});
-			check.addActionListener(e -> findModels(q, field, cards));
-			// Coming from the reminder at the end of the questions: the search starts by itself
-			if (searchModelsOnShow) {
-				searchModelsOnShow = false;
-				if (!modelsKey().equals(foundModelsKey)) SwingUtilities.invokeLater(() -> findModels(q, field, cards));
-			}
+			find.addActionListener(e -> findModels(q, field, cards));
+			words.getDocument().addDocumentListener(new SimpleDocListener(() -> {
+				modelSearchText = words.getText();
+				if (modelsKey().equals(foundModelsKey)) fillModelCards(q, field, cards);
+			}));
 		}
 		return p;
 	}
 
-	/** Workflow and dimensions ({@link #modelsKey()}) for which a pretrained model was already suggested, or null. */
-	private String pretrainedSuggestedKey = null;
-	/** The model question is shown from that suggestion: it starts the search. */
-	private boolean searchModelsOnShow = false;
+	/** Words of the search of models (kept while the wizard is open); empty: all the models found are shown. */
+	private String modelSearchText = "";
+
+	/** A magnifying glass, for the search of models. */
+	private static final javax.swing.Icon MAGNIFIER = new javax.swing.Icon() {
+		@Override
+		public void paintIcon(Component c, java.awt.Graphics g, int x, int y) {
+			java.awt.Graphics2D g2 = (java.awt.Graphics2D) g.create();
+			g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+			g2.setColor(BiaPyFiji.GREY);
+			g2.setStroke(new java.awt.BasicStroke(2f, java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
+			g2.drawOval(x + 2, y + 2, 10, 10);
+			g2.drawLine(x + 11, y + 11, x + 16, y + 16);
+			g2.dispose();
+		}
+
+		@Override
+		public int getIconWidth() {
+			return 18;
+		}
+
+		@Override
+		public int getIconHeight() {
+			return 18;
+		}
+	};
 
 	/**
-	 * Once all questions are answered with a model built from scratch, a last reminder to look for a pretrained model
-	 * in the BioImage Model Zoo (e.g. Cellpose-SAM for 2D instance segmentation): used as is or fine-tuned, it needs
-	 * far less data and training. Asked once per workflow and dimensions, and not when a search found none.
-	 *
-	 * @return true if the user went to look for one (the model question is then shown and searching)
+	 * Whether a model found has every word of the search (separated by spaces) in its nickname, name or tags, ignoring
+	 * case. An empty search matches every model.
 	 */
-	private boolean suggestPretrainedModels() {
-		// The UI tests accept every confirmation, which would take them to the search
-		if (java.awt.GraphicsEnvironment.isHeadless()) return false;
-		int source = model.questionFor("MODEL.SOURCE");
-		int select = model.questionFor("MODEL.BMZ.SOURCE_MODEL_ID");
-		if (source < 0 || select < 0 || !"biapy".equals(model.getAnswer("MODEL.SOURCE").getAsString())
-				|| !"false".equals(model.getAnswer("MODEL.LOAD_CHECKPOINT").getAsString()))
-			return false;
-		String key = modelsKey();
-		if (key.equals(pretrainedSuggestedKey)) return false;
-		pretrainedSuggestedKey = key;
-		int bmz = -1;
-		com.google.gson.JsonArray sources = model.getQuestion(source).map.getAsJsonArray("MODEL.SOURCE");
-		for (int i = 0; i < sources.size() && bmz < 0; i++) if ("bmz".equals(sources.get(i).getAsString())) bmz = i;
-		if (bmz < 0) return false;
-
-		String html = pretrainedSuggestionHtml(model.getAnswer("PROBLEM.TYPE").getAsString(),
-				model.getAnswer("PROBLEM.NDIM").getAsString());
-		if (!UiUtils.confirmHtml(this, "BiaPy Wizard - Pretrained models", html, "Look for pretrained models",
-				"Continue from scratch"))
-			return false;
-		model.setChoice(source, bmz);
-		rebuildToc();
-		searchModelsOnShow = true;
-		showQuestion(select);
+	static boolean matchesSearch(JsonObject m, String words) {
+		StringBuilder text = new StringBuilder();
+		for (String key : new String[] { "id", "nickname", "name" })
+			if (m.has(key) && m.get(key).isJsonPrimitive()) text.append(m.get(key).getAsString()).append(' ');
+		if (m.has("tags") && m.get("tags").isJsonArray())
+			for (JsonElement t : m.getAsJsonArray("tags")) text.append(t.getAsString()).append(' ');
+		String haystack = text.toString().toLowerCase(java.util.Locale.ROOT);
+		for (String w : words.trim().toLowerCase(java.util.Locale.ROOT).split("\\s+"))
+			if (!haystack.contains(w)) return false;
 		return true;
-	}
-
-	/** Message of {@link #suggestPretrainedModels()} for the workflow (PROBLEM.TYPE) and dimensions ("2D"/"3D"). */
-	static String pretrainedSuggestionHtml(String workflow, String ndim) {
-		StringBuilder html = new StringBuilder("<div style='width:440px'>");
-		html.append("<h1>Is there a pretrained model you could start from?</h1>")
-				.append("<p>You chose to build the model from scratch. The BioImage Model Zoo has pretrained models that ")
-				.append("BiaPy can use as they are or fine-tune with your data, which usually needs far fewer annotated ")
-				.append("images and much less training time than starting from scratch.</p>");
-		if ("INSTANCE_SEG".equals(workflow) && "2D".equals(ndim))
-			html.append("<p>For example, the Zoo has the <b>Cellpose-SAM</b> and <b>Cellpose-DINO</b> generalist models ")
-					.append("to segment cells and nuclei, and fine-tuning a Cellpose model on one's own images is a common ")
-					.append("way to get good results quickly.</p>");
-		html.append("<p>Do you want to look for models that fit your workflow and dimensions now? It needs an internet ")
-				.append("connection and may take a while. Your other answers are kept.</p></div>");
-		return UiUtils.htmlPage(html.toString());
 	}
 
 	///////////////////////////////
@@ -868,7 +923,7 @@ public class WizardPanel extends JPanel {
 		// The same folder already checked for another question (e.g. to train and to test): its check is reused
 		Object[] reuse = dataPath.isEmpty() ? model.reusableCheck(q.index, folder) : null;
 		if (reuse != null) {
-			model.setDataChecked(q.index, (JsonObject) reuse[0], (JsonObject) reuse[1]);
+			dataChecked(q, (JsonObject) reuse[0], (JsonObject) reuse[1]);
 			rebuildToc();
 			onDone.run();
 			UiUtils.info(this, "This folder was already checked as the " + folderRole((String) reuse[2])
@@ -882,6 +937,9 @@ public class WizardPanel extends JPanel {
 		args.addProperty("ndim", model.getAnswer("PROBLEM.NDIM").getAsString());
 		args.addProperty("data_path", dataPath);
 		args.addProperty("tracking", model.isTracking());
+		// The model takes the training images' channels: the test images must have them too
+		Integer trainChannels = model.trainChannels();
+		if ("DATA.TEST.PATH".equals(q.firstKey()) && trainChannels != null) args.addProperty("train_channels", trainChannels);
 		boolean isTarget = q.firstKey().contains("GT_PATH");
 		boolean train = q.firstKey().contains("TRAIN");
 		String title = (train ? "Training" : "Test") + (isTarget ? " targets" : " data");
@@ -921,7 +979,7 @@ public class WizardPanel extends JPanel {
 							+ res.get("error_message").getAsString());
 					return;
 				}
-				model.setDataChecked(q.index, res.getAsJsonObject("data_constraints"), res.getAsJsonObject("sample_info"));
+				dataChecked(q, res.getAsJsonObject("data_constraints"), res.getAsJsonObject("sample_info"));
 				rebuildToc();
 				onDone.run();
 				previewData(q, checked, title, dialog, steps, cancelled, noPreview);
@@ -956,6 +1014,14 @@ public class WizardPanel extends JPanel {
 			rebuildToc();
 			onDone.run();
 		}
+	}
+
+	/** Stores a successful data check, and says if the test images have to be checked again. */
+	private void dataChecked(Question q, JsonObject constraints, JsonObject sampleInfo) {
+		if (model.setDataChecked(q.index, constraints, sampleInfo))
+			UiUtils.info(this, "The training images have " + model.trainChannels() + " channel(s), and the test images "
+					+ "checked before have another number. The test images must have the same number of channels: "
+					+ "convert them if needed and check them again.");
 	}
 
 	/** "training raw images", "test targets"... for a data variable. */
@@ -1020,7 +1086,14 @@ public class WizardPanel extends JPanel {
 
 	private String modelsKey() {
 		return (model.isSet("PROBLEM.TYPE") ? model.getAnswer("PROBLEM.TYPE").getAsString() : "") + "|"
-				+ (model.isSet("PROBLEM.NDIM") ? model.getAnswer("PROBLEM.NDIM").getAsString() : "");
+				+ (model.isSet("PROBLEM.NDIM") ? model.getAnswer("PROBLEM.NDIM").getAsString() : "") + "|"
+				+ dataChannels();
+	}
+
+	/** Channels the model must take (WizardModel.dataChannels), or "all" if no data was checked yet. */
+	private String dataChannels() {
+		Integer channels = model.dataChannels();
+		return channels == null ? "all" : channels.toString();
 	}
 
 	private void findModels(Question q, JTextField field, JPanel cards) {
@@ -1031,6 +1104,9 @@ public class WizardPanel extends JPanel {
 		JsonObject args = new JsonObject();
 		args.addProperty("workflow", model.getAnswer("PROBLEM.TYPE").getAsString());
 		args.addProperty("ndim", model.getAnswer("PROBLEM.NDIM").getAsString());
+		String channels = dataChannels();
+		if (channels.equals("all")) args.addProperty("nchannels", channels);
+		else args.addProperty("nchannels", Integer.parseInt(channels));
 		foundModels.clear();
 		foundModelsKey = modelsKey();
 		cards.removeAll();
@@ -1069,11 +1145,9 @@ public class WizardPanel extends JPanel {
 		}
 		Question q = model.getQuestion(source);
 		model.setChoice(source, 0);
-		// There is nothing to suggest at the end of the questions
-		pretrainedSuggestedKey = modelsKey();
 		rebuildToc();
 		showQuestion(source);
-		UiUtils.info(this, "No compatible models were found in the BioImage Model Zoo for this workflow and dimensions.\n\n"
+		UiUtils.info(this, "No compatible models were found in the BioImage Model Zoo for this workflow, dimensions and channels.\n\n"
 				+ "The wizard continues with a model built from scratch: '" + q.toc + "' is now set to\n'" + q.answers.get(0)
 				+ "'. Click 'Continue' to go on.");
 	}
@@ -1181,7 +1255,15 @@ public class WizardPanel extends JPanel {
 	 */
 	private void fillModelCards(Question q, JTextField field, JPanel cards) {
 		cards.removeAll();
-		List<JsonObject> sorted = new ArrayList<>(foundModels);
+		List<JsonObject> sorted = new ArrayList<>();
+		for (JsonObject m : foundModels) if (matchesSearch(m, modelSearchText)) sorted.add(m);
+		if (!modelSearchText.trim().isEmpty()) {
+			JLabel matches = new JLabel(sorted.size() + " of " + foundModels.size() + " models match '" + modelSearchText.trim() + "'");
+			matches.setForeground(BiaPyFiji.GREY);
+			matches.setBorder(BorderFactory.createEmptyBorder(4, 6, 4, 6));
+			matches.setAlignmentX(Component.LEFT_ALIGNMENT);
+			cards.add(matches);
+		}
 		java.util.Map<String, Integer> sizes = new java.util.HashMap<>();
 		for (JsonObject m : sorted) sizes.merge(representationLabel(m), 1, Integer::sum);
 		boolean grouped = sizes.keySet().stream().anyMatch(r -> !r.isEmpty());
@@ -1671,7 +1753,6 @@ public class WizardPanel extends JPanel {
 			model.clear();
 			previews.clear();
 			confirmedWorkflow = null;
-			pretrainedSuggestedKey = null;
 			pages.show(pagePanel, START);
 		});
 	}
@@ -1738,7 +1819,7 @@ public class WizardPanel extends JPanel {
 	///////////
 	// Utils
 	///////////
-	// "<p align='center'><img ... src='{img:file}' .../></p>" in the help texts (see export_wizard_questions.py)
+	// "<p align='center'><img ... src='{img:file}' .../></p>" in the help texts (as written in questions.json)
 	private static final Pattern IMG = Pattern.compile("(?:<p[^>]*>\\s*)?<img[^>]*src='\\{img:([\\w.-]+)\\}'[^>]*>(?:\\s*</p>)?(?:\\s*<br>)?");
 
 	/**

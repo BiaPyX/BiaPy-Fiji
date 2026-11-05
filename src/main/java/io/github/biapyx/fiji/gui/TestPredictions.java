@@ -148,25 +148,26 @@ public class TestPredictions {
 		GridBagConstraints c = new GridBagConstraints();
 		c.insets = new Insets(4, 0, 6, 10);
 		c.gridy = 0;
-		String[] headers = { "", "Input", kind };
+		String[] headers = { "Input", kind };
 		for (int i = 0; i < headers.length; i++) {
 			c.gridx = i;
 			grid.add(caption(headers[i]), c);
 		}
+		// As in the training predictions: the image name in blue, then its tiles
 		for (Object[] row : rows) {
 			c.gridy++;
 			c.gridx = 0;
-			c.anchor = GridBagConstraints.EAST;
-			JLabel name = new JLabel("<html><div style='width:120px;text-align:right'>" + row[0] + "</div></html>");
-			name.setFont(name.getFont().deriveFont(Font.PLAIN, 11f));
-			grid.add(name, c);
+			c.gridwidth = headers.length;
+			c.anchor = GridBagConstraints.WEST;
+			grid.add(TrainingMonitor.sampleTitle((String) row[0]), c);
+			c.gridwidth = 1;
 			c.anchor = GridBagConstraints.CENTER;
-			c.gridx = 1;
+			c.gridy++;
 			grid.add(tile(icon(row[1])), c);
-			c.gridx = 2;
+			c.gridx = 1;
 			grid.add(tile(icon(row[2])), c);
 		}
-		c.gridx = 3;
+		c.gridx = 2;
 		c.weightx = 1;
 		grid.add(new JLabel(), c);
 		JPanel holder = new JPanel(new BorderLayout());

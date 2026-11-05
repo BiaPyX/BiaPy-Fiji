@@ -36,7 +36,7 @@ public class PythonBridge {
 
 	private static final String RESULT_PREFIX = "BIAPY_FIJI_RESULT:";
 	private static final String RES = "/biapy/python/";
-	private static final String[] FILES = { "biapy_fiji_bridge.py", "biapy_run.py" };
+	private static final String[] FILES = { "biapy_fiji_bridge.py", "biapy_compat.py", "biapy_run.py" };
 	/** Commands run by the server: the ones of the wizard, which need BiaPy imported. */
 	private static final Set<String> SERVED = new HashSet<>(
 			Arrays.asList("check_data", "preview_data", "find_models", "build_config", "read_config", "citations",

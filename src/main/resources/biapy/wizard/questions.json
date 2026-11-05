@@ -1,7 +1,8 @@
 {
  "sections": [
   "Problem description",
-  "Data"
+  "Data",
+  "Model"
  ],
  "questions": [
   {
@@ -93,108 +94,6 @@
   },
   {
    "id": "Q4",
-   "section": 0,
-   "toc": "Model source",
-   "text": "Do you want to use a pre-trained model?",
-   "type": "choice",
-   "answers": [
-    "No, I want to build a model from scratch",
-    "Yes, I have a model previously trained in BiaPy",
-    "Yes, I want to check if there is a pretrained model I can use"
-   ],
-   "map": {
-    "MODEL.SOURCE": [
-     "biapy",
-     "biapy",
-     "bmz"
-    ],
-    "MODEL.LOAD_CHECKPOINT": [
-     false,
-     true,
-     false
-    ],
-    "MODEL.LOAD_MODEL_FROM_CHECKPOINT": [
-     false,
-     true,
-     false
-    ]
-   },
-   "visible": true,
-   "help": "<p> This question determines how the deep learning model will be built. Based on your choice, additional questions may appear to guide the model setup process. </p> <p> Before using a deep learning model, it must be trained. The idea is to train the model on a specific task and then apply it to new images. For example, you could train a model to classify images based on their labels. If the training is successful, the model should be able to classify new images automatically. </p> <p> Training is a crucial step to ensure good results, but it requires labeled data, also known as 'ground truth'. Using the image classification example, you would need to label the training images first, like 'image1.png' as class 1, 'image2.png' as class 2, etc. Because training can be time-consuming, using a pre-trained model can be a major advantage. A pre-trained model has already been trained on a dataset and has some level of knowledge. </p> <p> If your images are similar to those used to train the pre-trained model, you might get good results without retraining it. If not, having similar images will at least make the retraining process faster and require fewer images. That's why it’s always a good idea to check for available pre-trained models that match your needs. Here are the options available: </p> <ul> <li> <p><strong>'No, I want to build a model from scratch'</strong>&nbsp; This option configures BiaPy to create a model from the ground up. No additional input will be required, and BiaPy will automatically configure the model based on the selected workflow and image dimensions.</p> </li> <li> <p><strong>'Yes, I have a model previously trained in BiaPy'</strong>&nbsp; Choose this option if you already have a model trained with BiaPy. The model must be stored in the folder you’ve selected for saving results, specifically in the 'checkpoints' folder, as a file with a '.pth' extension. You’ll need to specify this file when prompted after selecting this option.</p> </li> <li> <p><strong>'Yes, I want to check if there is a pretrained model I can use'</strong>&nbsp; This option allows you to load a pre-trained model from an external source. Currently, BiaPy supports loading models from the <a href='https://bioimage.io/#/'>BioImage Model Zoo</a>. Depending on the workflow and image dimensions, you can search for compatible models to use.</p> </li> </ul>"
-  },
-  {
-   "id": "Q5",
-   "section": 0,
-   "toc": "Path to model",
-   "text": "Please select the pretrained model trained with BiaPy before:",
-   "type": "model_biapy",
-   "answers": [],
-   "map": {
-    "PATHS.CHECKPOINT_FILE": ""
-   },
-   "visible": false,
-   "help": "<p> This question is about setting the path to the pre-trained model in BiaPy. The model should be stored in the folder you previously selected for saving results. Specifically, in the 'checkpoints' folder, there will be a file with a '.pth' extension, which represents the checkpoint of the pre-trained model. You need to locate this file on your system by clicking the 'Browse' button. </p>",
-   "condition": {
-    "or_cond": [],
-    "and_cond": [
-     [
-      "MODEL.SOURCE",
-      "biapy"
-     ],
-     [
-      "MODEL.LOAD_CHECKPOINT",
-      true
-     ]
-    ]
-   }
-  },
-  {
-   "id": "Q6",
-   "section": 0,
-   "toc": "Select model",
-   "text": "Please select a pretrained model by pressing 'Check models' below. This process requires internet connection and may take a while.",
-   "type": "model_others",
-   "answers": [],
-   "map": {
-    "MODEL.BMZ.SOURCE_MODEL_ID": ""
-   },
-   "visible": false,
-   "help": "<p> This question allows you to load a pre-trained model from an external source. Currently, BiaPy supports loading models from the <a href='https://bioimage.io/#/'>BioImage Model Zoo</a>. </p> <p> To search for all available models, click the 'Check models' button. This will start an online search, which requires an internet connection and may take several minutes. Once the process is complete, a list will appear below the question, displaying all the pre-trained models that can be used for the selected workflow and image dimensions. </p>",
-   "condition": {
-    "or_cond": [
-     [
-      "MODEL.SOURCE",
-      [
-       "bmz",
-       "torchvision"
-      ]
-     ],
-     [
-      "PROBLEM.TYPE",
-      [
-       "SEMANTIC_SEG",
-       "INSTANCE_SEG",
-       "DETECTION",
-       "DENOISING",
-       "SUPER_RESOLUTION",
-       "SELF_SUPERVISED",
-       "CLASSIFICATION",
-       "IMAGE_TO_IMAGE"
-      ]
-     ],
-     [
-      "PROBLEM.NDIM",
-      [
-       "2D",
-       "3D"
-      ]
-     ]
-    ],
-    "and_cond": []
-   }
-  },
-  {
-   "id": "Q7",
    "section": 1,
    "toc": "Phases",
    "text": "What do you want to do?",
@@ -245,38 +144,10 @@
    },
    "help": "<p>BiaPy can train a denoising model in two ways:</p><ul><li><p><strong>'No, I only have the noisy images'</strong>: self-supervised training with Noise2Void. Only the noisy images are needed, which is useful because clean images are frequently unavailable.</p></li><li><p><strong>'Yes, I have clean target images'</strong>: supervised training. Each noisy image has a clean version of the same field of view and size, used as the target to learn from. This usually gives better results. The Wizard will ask for the folder with the clean images: they are paired with the noisy ones by file name order, so both folders must contain the same number of images.</p></li></ul>",
    "section": 1,
-   "id": "Q8"
+   "id": "Q5"
   },
   {
-   "id": "Q9",
-   "toc": "Training length",
-   "text": "How long should the training be?",
-   "type": "choice",
-   "answers": [
-    "Quick: to check that everything works or to try BiaPy",
-    "Complete: for the best results (it can take a day)"
-   ],
-   "map": {
-    "training_length": [
-     "quick",
-     "full"
-    ]
-   },
-   "visible": false,
-   "condition": {
-    "and_cond": [
-     [
-      "TRAIN.ENABLE",
-      true
-     ]
-    ],
-    "or_cond": []
-   },
-   "help": "<p>How much the model is trained, which decides how long it takes:</p><ul><li><p><strong>Quick</strong>: a short training, to check that the data and the configuration work, or to see how BiaPy works, e.g. in a course. In segmentation and detection it is 2% of a complete training: on a recent NVIDIA GPU about 20 minutes for 2D images and 35 minutes for 3D ones (longer on laptops, Apple Silicon or without a GPU). The results are usually already reasonable, but not the best the model can give.</p></li><li><p><strong>Complete</strong>: as long as <a href='https://github.com/MIC-DKFZ/nnUNet'>nnU-Net</a>, a reference method for biomedical segmentation, trains: 1000 epochs of 250 batches. It gives the best results but can take a day on such a GPU. It stops earlier when the model stops improving (on the validation data).</p></li></ul><p>A quick training can be continued later: select the model it produced (<em>checkpoints</em> folder of the job) as a pretrained BiaPy model and train it again.</p>",
-   "section": 1
-  },
-  {
-   "id": "Q10",
+   "id": "Q6",
    "section": 1,
    "toc": "Train data (raw)",
    "text": "Could you please specify the location of the training raw image folder? After that, click on the 'Check data' button to analyze the data.",
@@ -298,7 +169,7 @@
    }
   },
   {
-   "id": "Q11",
+   "id": "Q7",
    "section": 1,
    "toc": "Train target (ground truth)",
    "text": "Could you please specify the location of the training ground truth (target) folder? After that, click on the 'Check data' button to analyze the data.",
@@ -352,8 +223,254 @@
    }
   },
   {
-   "id": "Q12",
+   "id": "Q8",
    "section": 1,
+   "toc": "Test data (raw)",
+   "text": "Could you please specify the location of the test raw image folder? After that, click on the 'Check data' button to analyze the data.",
+   "type": "path",
+   "answers": [],
+   "map": {
+    "DATA.TEST.PATH": ""
+   },
+   "visible": false,
+   "help": "<p> In this step, you need to specify the folder where the images for testing the network are located. All these images must have the same number of channels. It's also important that each channel contains the same type of information to avoid confusing the model. </p> <p> The 'Check data' button will verify if the images within the selected folder can be read correctly by analyzing them one by one. This process may take some time, but it ensures that the images will be correctly read later in BiaPy. For this specific case, the following will be checked: </p> <ul> <li> <p>All images can be read properly.</p> </li> <li> <p>All images have the same number of input channels.</p> </li> <li> <p>All images are within the same value range. For example, if the images are in uint8 format, their values should be between 0 and 255. This must be true for all images.</p> </li> </ul>",
+   "condition": {
+    "and_cond": [
+     [
+      "TEST.ENABLE",
+      true
+     ]
+    ],
+    "or_cond": []
+   }
+  },
+  {
+   "id": "Q9",
+   "section": 1,
+   "toc": "Test target data availability",
+   "text": "Do you have test ground truth (target) data?",
+   "type": "choice",
+   "answers": [
+    "No",
+    "Yes"
+   ],
+   "map": {
+    "DATA.TEST.LOAD_GT": [
+     false,
+     true
+    ]
+   },
+   "visible": false,
+   "help": "<p> This question is meant to determine whether you have target data, or ground truth, for the test data. If you have this, BiaPy will be able to calculate various metrics, which will vary depending on the selected workflow, to measure the model's performance. </p> <p> If you answer 'Yes', a follow-up question will appear, asking for the path to the target data. </p>",
+   "condition": {
+    "any_of": [
+     {
+      "and_cond": [
+       [
+        "TEST.ENABLE",
+        true
+       ]
+      ],
+      "or_cond": [
+       [
+        "PROBLEM.TYPE",
+        [
+         "SEMANTIC_SEG",
+         "INSTANCE_SEG",
+         "DETECTION",
+         "SUPER_RESOLUTION",
+         "IMAGE_TO_IMAGE"
+        ]
+       ]
+      ]
+     },
+     {
+      "and_cond": [
+       [
+        "TEST.ENABLE",
+        true
+       ],
+       [
+        "PROBLEM.TYPE",
+        "DENOISING"
+       ],
+       [
+        "PROBLEM.DENOISING.LOAD_GT_DATA",
+        true
+       ]
+      ],
+      "or_cond": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "Q10",
+   "section": 1,
+   "toc": "Test target (ground truth)",
+   "text": "Could you please specify the location of the test ground truth (target) folder? After that, click on the 'Check data' button to analyze the data.",
+   "type": "path",
+   "answers": [],
+   "map": {
+    "DATA.TEST.GT_PATH": ""
+   },
+   "visible": false,
+   "help": "<p> In this step, you need to specify the directory where the test target data, also known as 'ground truth', is located. This target data will be used to train the network. </p> <p> The 'Check data' button will verify that the files in the selected folder can be read properly by analyzing them one by one. This process may take some time, but it ensures that the data will be correctly read by BiaPy later. </p> <p> The target and its verification vary depending on the workflow: </p> <ul> <li> For <strong>Semantic segmentation</strong>, single-channel images are expected, specifically semantic masks. In these masks, each pixel will have a specific integer value corresponding to the class it belongs to. The checks performed include: 1) ensuring all images can be read correctly; 2) verifying that all images have the same number of input channels. Additionally, the number of classes to predict will be automatically extracted based on the different classes found in the images. </li> <li> For <strong>Instance segmentation</strong>, one or two-channel images are expected. The first channel must always contain the instance masks, where each pixel has an integer value representing the object it belongs to. If two channels are provided, the second channel should contain the class of each instance. The checks performed include: 1) ensuring all images can be read correctly; 2) verifying that all images have the same number of input channels. If two channels are present, as in semantic segmentation, the number of classes to predict will be automatically extracted from the different classes found. </li> <li> For <strong>Detection</strong>, files with the coordinates of object centers (centroids) are expected. The checks include: 1) ensuring the files can be read correctly; 2) verifying that the required columns for creating the coordinates are present in each file. Additionally, if the files contain a 'class' column, the number of classes will automatically be set to the highest value found in that column across all files. </li> <li> For <strong>Super-resolution</strong>, high-resolution images are expected, meaning these images will be 2x or 4x larger than the versions in the 'Train data (raw)' folder from the previous step. The checks include: 1) ensuring all images can be read correctly; 2) verifying that all images have the same number of input channels; 3) checking that all images are within the same value range. For example, if the images are uint8, their values should be between 0 and 255 across all images. </li> <li> For <strong>Image-to-Image</strong>, images are expected. The checks include: 1) ensuring all images can be read correctly; 2) verifying that all images have the same number of input channels; 3) checking that all images are within the same value range. For instance, if the images are uint8, the values should range between 0 and 255 across all images. </li> </ul><p>For <strong>Denoising</strong> (only when clean targets are available): the clean version of each noisy image, with the same size.</p>",
+   "condition": {
+    "any_of": [
+     {
+      "and_cond": [
+       [
+        "TEST.ENABLE",
+        true
+       ],
+       [
+        "DATA.TEST.LOAD_GT",
+        true
+       ]
+      ],
+      "or_cond": [
+       [
+        "PROBLEM.TYPE",
+        [
+         "SEMANTIC_SEG",
+         "INSTANCE_SEG",
+         "DETECTION",
+         "SUPER_RESOLUTION",
+         "IMAGE_TO_IMAGE"
+        ]
+       ]
+      ]
+     },
+     {
+      "and_cond": [
+       [
+        "TEST.ENABLE",
+        true
+       ],
+       [
+        "DATA.TEST.LOAD_GT",
+        true
+       ],
+       [
+        "PROBLEM.TYPE",
+        "DENOISING"
+       ],
+       [
+        "PROBLEM.DENOISING.LOAD_GT_DATA",
+        true
+       ]
+      ],
+      "or_cond": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "Q11",
+   "section": 2,
+   "toc": "Model source",
+   "text": "Do you want to use a pre-trained model?",
+   "type": "choice",
+   "answers": [
+    "No, I want to build a model from scratch",
+    "Yes, I have a model previously trained in BiaPy",
+    "Yes, I want to check if there is a pretrained model I can use"
+   ],
+   "map": {
+    "MODEL.SOURCE": [
+     "biapy",
+     "biapy",
+     "bmz"
+    ],
+    "MODEL.LOAD_CHECKPOINT": [
+     false,
+     true,
+     false
+    ],
+    "MODEL.LOAD_MODEL_FROM_CHECKPOINT": [
+     false,
+     true,
+     false
+    ]
+   },
+   "visible": true,
+   "help": "<p> This question determines how the deep learning model will be built. Based on your choice, additional questions may appear to guide the model setup process. </p> <p> Before using a deep learning model, it must be trained. The idea is to train the model on a specific task and then apply it to new images. For example, you could train a model to classify images based on their labels. If the training is successful, the model should be able to classify new images automatically. </p> <p> Training is a crucial step to ensure good results, but it requires labeled data, also known as 'ground truth'. Using the image classification example, you would need to label the training images first, like 'image1.png' as class 1, 'image2.png' as class 2, etc. Because training can be time-consuming, using a pre-trained model can be a major advantage. A pre-trained model has already been trained on a dataset and has some level of knowledge. </p> <p> If your images are similar to those used to train the pre-trained model, you might get good results without retraining it. If not, having similar images will at least make the retraining process faster and require fewer images. That's why it’s always a good idea to check for available pre-trained models that match your needs. Here are the options available: </p> <ul> <li> <p><strong>'No, I want to build a model from scratch'</strong>&nbsp; This option configures BiaPy to create a model from the ground up. No additional input will be required, and BiaPy will automatically configure the model based on the selected workflow and image dimensions.</p> </li> <li> <p><strong>'Yes, I have a model previously trained in BiaPy'</strong>&nbsp; Choose this option if you already have a model trained with BiaPy. The model must be stored in the folder you’ve selected for saving results, specifically in the 'checkpoints' folder, as a file with a '.pth' extension. You’ll need to specify this file when prompted after selecting this option.</p> </li> <li> <p><strong>'Yes, I want to check if there is a pretrained model I can use'</strong>&nbsp; This option allows you to load a pre-trained model from an external source. Currently, BiaPy supports loading models from the <a href='https://bioimage.io/#/'>BioImage Model Zoo</a>. Depending on the workflow and image dimensions, you can search for compatible models to use.</p> </li> </ul>"
+  },
+  {
+   "id": "Q12",
+   "section": 2,
+   "toc": "Path to model",
+   "text": "Please select the pretrained model trained with BiaPy before:",
+   "type": "model_biapy",
+   "answers": [],
+   "map": {
+    "PATHS.CHECKPOINT_FILE": ""
+   },
+   "visible": false,
+   "help": "<p> This question is about setting the path to the pre-trained model in BiaPy. The model should be stored in the folder you previously selected for saving results. Specifically, in the 'checkpoints' folder, there will be a file with a '.pth' extension, which represents the checkpoint of the pre-trained model. You need to locate this file on your system by clicking the 'Browse' button. </p>",
+   "condition": {
+    "or_cond": [],
+    "and_cond": [
+     [
+      "MODEL.SOURCE",
+      "biapy"
+     ],
+     [
+      "MODEL.LOAD_CHECKPOINT",
+      true
+     ]
+    ]
+   }
+  },
+  {
+   "id": "Q13",
+   "section": 2,
+   "toc": "Select model",
+   "text": "Please select a pretrained model by pressing 'Find models' below. Only the models that fit your images (dimensions and number of channels) are listed. This process requires internet connection and may take a while.",
+   "type": "model_others",
+   "answers": [],
+   "map": {
+    "MODEL.BMZ.SOURCE_MODEL_ID": ""
+   },
+   "visible": false,
+   "help": "<p> This question allows you to load a pre-trained model from an external source. Currently, BiaPy supports loading models from the <a href='https://bioimage.io/#/'>BioImage Model Zoo</a>. </p> <p> To search for all available models, click the 'Find models' button. This will start an online search, which requires an internet connection and may take several minutes. Once the process is complete, a list will appear below the question, displaying all the pre-trained models that can be used for the selected workflow and image dimensions. </p>",
+   "condition": {
+    "or_cond": [
+     [
+      "MODEL.SOURCE",
+      [
+       "bmz",
+       "torchvision"
+      ]
+     ],
+     [
+      "PROBLEM.TYPE",
+      [
+       "SEMANTIC_SEG",
+       "INSTANCE_SEG",
+       "DETECTION",
+       "DENOISING",
+       "SUPER_RESOLUTION",
+       "SELF_SUPERVISED",
+       "CLASSIFICATION",
+       "IMAGE_TO_IMAGE"
+      ]
+     ],
+     [
+      "PROBLEM.NDIM",
+      [
+       "2D",
+       "3D"
+      ]
+     ]
+    ],
+    "and_cond": []
+   }
+  },
+  {
+   "id": "Q14",
+   "section": 2,
    "toc": "Instance representation",
    "text": "How should the network represent the instances? The options shown suit the shape of the instances in your training masks.",
    "type": "representation",
@@ -439,148 +556,32 @@
    "help": "<p>Instance segmentation networks do not predict the instances directly but an intermediate <strong>representation</strong> of them (e.g. their foreground and contours), from which the instances are built afterwards. Which one works best depends on the shape of the instances.</p><p>When the training masks were checked, the shape of their instances was measured (size, convexity, elongation, branching, how often they touch each other and whether they are star-convex, i.e. every point sees their center in a straight line). Only the representations that suit them are offered, and the recommended one is marked. The others are listed after them with the reason why they are not offered.</p><ul><li><strong>Foreground + contour</strong>: works for any shape, the contours separate touching instances.</li><li><strong>Foreground + central point</strong> / <strong>distance to the border</strong>: compact, roundish instances, marked by a single point or distance peak.</li><li><strong>Foreground + skeleton</strong>: elongated, thin or branched instances.</li><li><strong>StarDist</strong>: star-convex instances, e.g. nuclei, even when crowded.</li><li><strong>Cellpose</strong> flows: irregular, crowded cells.</li><li><strong>HoVer-Net</strong>: compact instances such as nuclei in histology images.</li><li><strong>Affinities</strong>: dense 3D instances that fill the volume, such as neurons in electron microscopy.</li></ul>"
   },
   {
-   "id": "Q13",
-   "section": 1,
-   "toc": "Test data (raw)",
-   "text": "Could you please specify the location of the test raw image folder? After that, click on the 'Check data' button to analyze the data.",
-   "type": "path",
-   "answers": [],
+   "id": "Q15",
+   "toc": "Training length",
+   "text": "How long should the training be?",
+   "type": "choice",
+   "answers": [
+    "Quick: to check that everything works or to try BiaPy",
+    "Complete: for the best results (it can take a day)"
+   ],
    "map": {
-    "DATA.TEST.PATH": ""
+    "training_length": [
+     "quick",
+     "full"
+    ]
    },
    "visible": false,
-   "help": "<p> In this step, you need to specify the folder where the images for testing the network are located. All these images must have the same number of channels. It's also important that each channel contains the same type of information to avoid confusing the model. </p> <p> The 'Check data' button will verify if the images within the selected folder can be read correctly by analyzing them one by one. This process may take some time, but it ensures that the images will be correctly read later in BiaPy. For this specific case, the following will be checked: </p> <ul> <li> <p>All images can be read properly.</p> </li> <li> <p>All images have the same number of input channels.</p> </li> <li> <p>All images are within the same value range. For example, if the images are in uint8 format, their values should be between 0 and 255. This must be true for all images.</p> </li> </ul>",
    "condition": {
     "and_cond": [
      [
-      "TEST.ENABLE",
+      "TRAIN.ENABLE",
       true
      ]
     ],
     "or_cond": []
-   }
-  },
-  {
-   "id": "Q14",
-   "section": 1,
-   "toc": "Test target data availability",
-   "text": "Do you have test ground truth (target) data?",
-   "type": "choice",
-   "answers": [
-    "No",
-    "Yes"
-   ],
-   "map": {
-    "DATA.TEST.LOAD_GT": [
-     false,
-     true
-    ]
    },
-   "visible": false,
-   "help": "<p> This question is meant to determine whether you have target data, or ground truth, for the test data. If you have this, BiaPy will be able to calculate various metrics, which will vary depending on the selected workflow, to measure the model's performance. </p> <p> If you answer 'Yes', a follow-up question will appear, asking for the path to the target data. </p>",
-   "condition": {
-    "any_of": [
-     {
-      "and_cond": [
-       [
-        "TEST.ENABLE",
-        true
-       ]
-      ],
-      "or_cond": [
-       [
-        "PROBLEM.TYPE",
-        [
-         "SEMANTIC_SEG",
-         "INSTANCE_SEG",
-         "DETECTION",
-         "SUPER_RESOLUTION",
-         "IMAGE_TO_IMAGE"
-        ]
-       ]
-      ]
-     },
-     {
-      "and_cond": [
-       [
-        "TEST.ENABLE",
-        true
-       ],
-       [
-        "PROBLEM.TYPE",
-        "DENOISING"
-       ],
-       [
-        "PROBLEM.DENOISING.LOAD_GT_DATA",
-        true
-       ]
-      ],
-      "or_cond": []
-     }
-    ]
-   }
-  },
-  {
-   "id": "Q15",
-   "section": 1,
-   "toc": "Test target (ground truth)",
-   "text": "Could you please specify the location of the test ground truth (target) folder? After that, click on the 'Check data' button to analyze the data.",
-   "type": "path",
-   "answers": [],
-   "map": {
-    "DATA.TEST.GT_PATH": ""
-   },
-   "visible": false,
-   "help": "<p> In this step, you need to specify the directory where the test target data, also known as 'ground truth', is located. This target data will be used to train the network. </p> <p> The 'Check data' button will verify that the files in the selected folder can be read properly by analyzing them one by one. This process may take some time, but it ensures that the data will be correctly read by BiaPy later. </p> <p> The target and its verification vary depending on the workflow: </p> <ul> <li> For <strong>Semantic segmentation</strong>, single-channel images are expected, specifically semantic masks. In these masks, each pixel will have a specific integer value corresponding to the class it belongs to. The checks performed include: 1) ensuring all images can be read correctly; 2) verifying that all images have the same number of input channels. Additionally, the number of classes to predict will be automatically extracted based on the different classes found in the images. </li> <li> For <strong>Instance segmentation</strong>, one or two-channel images are expected. The first channel must always contain the instance masks, where each pixel has an integer value representing the object it belongs to. If two channels are provided, the second channel should contain the class of each instance. The checks performed include: 1) ensuring all images can be read correctly; 2) verifying that all images have the same number of input channels. If two channels are present, as in semantic segmentation, the number of classes to predict will be automatically extracted from the different classes found. </li> <li> For <strong>Detection</strong>, files with the coordinates of object centers (centroids) are expected. The checks include: 1) ensuring the files can be read correctly; 2) verifying that the required columns for creating the coordinates are present in each file. Additionally, if the files contain a 'class' column, the number of classes will automatically be set to the highest value found in that column across all files. </li> <li> For <strong>Super-resolution</strong>, high-resolution images are expected, meaning these images will be 2x or 4x larger than the versions in the 'Train data (raw)' folder from the previous step. The checks include: 1) ensuring all images can be read correctly; 2) verifying that all images have the same number of input channels; 3) checking that all images are within the same value range. For example, if the images are uint8, their values should be between 0 and 255 across all images. </li> <li> For <strong>Image-to-Image</strong>, images are expected. The checks include: 1) ensuring all images can be read correctly; 2) verifying that all images have the same number of input channels; 3) checking that all images are within the same value range. For instance, if the images are uint8, the values should range between 0 and 255 across all images. </li> </ul><p>For <strong>Denoising</strong> (only when clean targets are available): the clean version of each noisy image, with the same size.</p>",
-   "condition": {
-    "any_of": [
-     {
-      "and_cond": [
-       [
-        "TEST.ENABLE",
-        true
-       ],
-       [
-        "DATA.TEST.LOAD_GT",
-        true
-       ]
-      ],
-      "or_cond": [
-       [
-        "PROBLEM.TYPE",
-        [
-         "SEMANTIC_SEG",
-         "INSTANCE_SEG",
-         "DETECTION",
-         "SUPER_RESOLUTION",
-         "IMAGE_TO_IMAGE"
-        ]
-       ]
-      ]
-     },
-     {
-      "and_cond": [
-       [
-        "TEST.ENABLE",
-        true
-       ],
-       [
-        "DATA.TEST.LOAD_GT",
-        true
-       ],
-       [
-        "PROBLEM.TYPE",
-        "DENOISING"
-       ],
-       [
-        "PROBLEM.DENOISING.LOAD_GT_DATA",
-        true
-       ]
-      ],
-      "or_cond": []
-     }
-    ]
-   }
+   "help": "<p>How much the model is trained, which decides how long it takes:</p><ul><li><p><strong>Quick</strong>: a short training, to check that the data and the configuration work, or to see how BiaPy works, e.g. in a course. In segmentation and detection it is 2% of a complete training: on a recent NVIDIA GPU about 20 minutes for 2D images and 35 minutes for 3D ones (longer on laptops, Apple Silicon or without a GPU). The results are usually already reasonable, but not the best the model can give.</p></li><li><p><strong>Complete</strong>: as long as <a href='https://github.com/MIC-DKFZ/nnUNet'>nnU-Net</a>, a reference method for biomedical segmentation, trains: 1000 epochs of 250 batches. It gives the best results but can take a day on such a GPU. It stops earlier when the model stops improving (on the validation data).</p></li></ul><p>A quick training can be continued later: select the model it produced (<em>checkpoints</em> folder of the job) as a pretrained BiaPy model and train it again.</p>",
+   "section": 2
   }
  ]
 }

@@ -4,7 +4,8 @@ Bridge between the BiaPy Fiji plugin (Java) and Python.
 Every command prints free-form log lines and ends with exactly one line:
     BIAPY_FIJI_RESULT:<json>
 which is what the Java side parses. The wizard logic (data checks, preview and configuration) is BiaPy's own
-(biapy.wizard), shared with BiaPy-GUI, so both front-ends produce the same configuration files.
+(biapy.wizard), shared with BiaPy-GUI, so both front-ends produce the same configuration files. Fixes for bugs of
+released BiaPy versions go to biapy_compat.py, not here.
 
 Usage:
     python biapy_fiji_bridge.py <command> [--json <file with arguments>]
@@ -150,14 +151,15 @@ def cmd_check_data(args):
     """Checks a folder selected in the wizard and gathers its fingerprint (biapy.wizard.data_check)."""
     wizard()
     from biapy.wizard.config_builder import to_jsonable
-    from biapy.wizard.data_check import check_folder
+
+    from biapy_compat import check_folder
 
     step("Reading and analyzing the files of the folder . . .")
     return to_jsonable(
         check_folder(
             args["folder"], args["key"], args["workflow"], args["ndim"], progress=progress,
             percentage=float(args.get("percentage", 100)), data_path=args.get("data_path", ""),
-            tracking=bool(args.get("tracking", False)),
+            tracking=bool(args.get("tracking", False)), train_channels=args.get("train_channels"),
         )
     )
 
@@ -195,13 +197,15 @@ def cmd_find_models(args):
         MODEL_FOUND:<json>
     """
     try:
-        from biapy.models.bmz_search import list_compatible_bmz_models
+        import biapy.models.bmz_search  # noqa: F401
     except ImportError:
         raise RuntimeError(
             "This BiaPy version can't search the BioImage Model Zoo from the plugin: please update BiaPy "
             "('Reinstall BiaPy' in the HOME tab)."
         )
     from biapy.wizard.config_builder import to_jsonable
+
+    from biapy_compat import list_compatible_bmz_models
 
     def entry(info):
         # BiaPy loads Model Zoo models by their nickname (e.g. "wild-whale"), which is the "id" that goes to
@@ -227,39 +231,25 @@ def cmd_find_models(args):
         emit("MODEL_PROGRESS:{} {}".format(done, total))
 
     log("Getting the list of models from the BioImage Model Zoo . . .")
-    models = list_compatible_bmz_models(workflow=args["workflow"], ndim=args["ndim"], quiet=True, callback=checked)
+    models = list_compatible_bmz_models(
+        workflow=args["workflow"], ndim=args["ndim"], nchannels=args.get("nchannels", "all"), quiet=True,
+        callback=checked,
+    )
     log("{} compatible models found".format(len(models)))
     return {"models": [entry(m) for m in models]}
-
-
-def supported_answers(answers):
-    """The answers without the ones the BiaPy installed does not know (it would write them as variables)."""
-    from biapy.wizard import config_builder
-
-    if "training_length" in answers and not hasattr(config_builder, "TRAINING_LENGTHS"):
-        answers.pop("training_length")
-        log("This BiaPy version does not choose how long to train: its default number of epochs is used")
-    return answers
-
-
-# Zoo models whose packaged ResUNet_SE builds Squeeze-and-Excitation blocks that its forward never uses, so their
-# parameters get no gradient and DDP training fails unless it looks for unused parameters
-BMZ_MODELS_WITH_UNUSED_PARAMETERS = {"committed-octopus", "demanding-dromedary", "gorgeous-whale", "venomous-swan"}
 
 
 def cmd_build_config(args):
     """Configuration file from the wizard's answers, adapted to the data (biapy.wizard.config_builder)."""
     wizard()
-    from biapy.wizard.config_builder import WizardError, build_config, to_jsonable, write_config
+    from biapy.wizard.config_builder import WizardError, to_jsonable, write_config
 
-    supported_answers(args["answers"])
+    from biapy_compat import build_config
+
     try:
         cfg, report = build_config(args["answers"], args.get("gpus"))
     except WizardError as e:
         return {"error": True, "error_message": str(e)}
-    model = cfg.get("MODEL", {})
-    if model.get("SOURCE") == "bmz" and model.get("BMZ", {}).get("SOURCE_MODEL_ID") in BMZ_MODELS_WITH_UNUSED_PARAMETERS:
-        model["FIND_UNUSED_PARAMETERS"] = True
     if report["applied"]:
         log("Configuration adapted to the data:")
     else:
@@ -277,10 +267,12 @@ def cmd_estimate_resources(args):
     configuration). "resources" is None with BiaPy versions that don't estimate them.
     """
     wizard()
-    from biapy.wizard.config_builder import WizardError, build_config, to_jsonable
+    from biapy.wizard.config_builder import WizardError, to_jsonable
+
+    from biapy_compat import build_config
 
     try:
-        _, report = build_config(supported_answers(args["answers"]), args.get("gpus"))
+        _, report = build_config(args["answers"], args.get("gpus"))
     except WizardError as e:
         return {"resources": None, "error_message": str(e)}
     return {"resources": to_jsonable(report.get("resources"))}

@@ -56,8 +56,9 @@ src/main/java/io/github/biapyx/fiji/
   gui/HomePanel.java, WizardPanel.java, RunPanel.java
   wizard/WizardModel.java    wizard answers, conditional questions, navigation (port of BiaPy-GUI logic)
 src/main/resources/biapy/
-  wizard/questions.json      generated from BiaPy-GUI (scripts/export_wizard_questions.py)
+  wizard/questions.json      the wizard's questions (first taken from BiaPy-GUI, now edited here)
   python/biapy_fiji_bridge.py  thin layer over biapy.wizard
+  python/biapy_compat.py     fixes for bugs of released BiaPy versions, until a release includes them
   python/biapy_run.py        launcher of the BiaPy runs
 src/test/python/             tests of the bridge (files shipped, serve mode)
 ```
@@ -93,8 +94,7 @@ adapts the configuration, following [nnU-Net](https://github.com/MIC-DKFZ/nnUNet
 - The other workflows have no strategy yet.
 
 The plan is logged and written as a comment at the top of the YAML. Unlike BiaPy-GUI, the Wizard does not ask
-for the size of the objects to choose the patch size (`scripts/export_wizard_questions.py` removes those
-questions). When the patch size is not planned (no strategy for the workflow, or a pretrained model), it is the
+for the size of the objects to choose the patch size. When the patch size is not planned (no strategy for the workflow, or a pretrained model), it is the
 one of the checkpoint to load (BiaPy refuses a different one), or a fixed 256x256 / 20x256x256
 (`FIXED_PATCH_SIZE`); denoising and super-resolution keep BiaPy-GUI's own defaults.
 Tests: `pytest tests/test_wizard.py` in BiaPy; the GPU memory model is fitted with BiaPy's
@@ -102,12 +102,9 @@ Tests: `pytest tests/test_wizard.py` in BiaPy; the GPU memory model is fitted wi
 
 ### Keeping in sync with BiaPy-GUI
 
-```bash
-# Wizard questions/help texts (needs an env with BiaPy and BiaPy-GUI requirements, e.g. PySide6)
-QT_QPA_PLATFORM=offscreen python scripts/export_wizard_questions.py /path/to/BiaPy-GUI
-```
-
-The data checks, preview and configuration need no syncing: they are BiaPy's (`biapy.wizard`).
+The questions (`questions.json`) are the plugin's own: the Fiji wizard checks the data before choosing the model,
+to list only the pretrained models that fit it. The data checks, preview and configuration need no syncing: they
+are BiaPy's (`biapy.wizard`).
 
 ## Build and install
 

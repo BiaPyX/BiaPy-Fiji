@@ -14,8 +14,8 @@ import com.google.gson.JsonParser;
 import com.google.gson.JsonPrimitive;
 
 /**
- * State of the Wizard questionnaire. Questions are loaded from {@code questions.json}, generated from
- * BiaPy-GUI's settings.py, and the logic (answers, conditional visibility, navigation and checks before
+ * State of the Wizard questionnaire. Questions are loaded from {@code questions.json} (taken from BiaPy-GUI's
+ * settings.py, but the data questions come before the model ones), and the logic (answers, conditional visibility, navigation and checks before
  * exporting) mirrors BiaPy-GUI's ui_utils.py so both produce the same configurations.
  */
 public class WizardModel {
@@ -93,6 +93,8 @@ public class WizardModel {
 	private JsonObject answers;
 	private final JsonObject originalAnswers = new JsonObject();
 	private int current = 0;
+	/** Channels of the raw images checked, per variable ("DATA.TRAIN.PATH", "DATA.TEST.PATH"). */
+	private final Map<String, Integer> rawChannels = new java.util.HashMap<>();
 
 	public WizardModel() {
 		JsonObject root;
@@ -118,6 +120,7 @@ public class WizardModel {
 
 	public void clear() {
 		answers = originalAnswers.deepCopy();
+		rawChannels.clear();
 		answered = new Object[questions.size()];
 		visible = defaultVisible.clone();
 		current = 0;
@@ -226,7 +229,10 @@ public class WizardModel {
 		Question q = questions.get(qi);
 		path = path == null ? "" : path.trim();
 		if (path.isEmpty()) return;
-		if (!path.equals(answered[qi])) answers.add("CHECKED " + q.firstKey(), UNSET);
+		if (!path.equals(answered[qi])) {
+			answers.add("CHECKED " + q.firstKey(), UNSET);
+			resetZooModel();
+		}
 		answers.addProperty(q.firstKey(), path);
 		answered[qi] = path;
 		updateVisibility();
@@ -240,6 +246,36 @@ public class WizardModel {
 		answers.addProperty(q.firstKey(), text);
 		answered[qi] = text;
 		updateVisibility();
+	}
+
+	/**
+	 * Channels the model must take: the training images' when the job trains and they are checked (the test images
+	 * have to be converted to them), otherwise the test images'; null if none is checked.
+	 */
+	public Integer dataChannels() {
+		Integer train = trainChannels();
+		return train != null ? train : checkedChannels("DATA.TEST.PATH");
+	}
+
+	/** Channels of the training images, if the job trains and they are checked; otherwise null. */
+	public Integer trainChannels() {
+		return checkedChannels("DATA.TRAIN.PATH");
+	}
+
+	/** Channels of the raw images of {@code key} (e.g. "DATA.TEST.PATH") if they are asked and checked, else null. */
+	private Integer checkedChannels(String key) {
+		int qi = questionFor(key);
+		return qi >= 0 && visible[qi] && isDataChecked(questions.get(qi)) ? rawChannels.get(key) : null;
+	}
+
+	/** Forgets the Model Zoo model chosen, which was listed for data that changed. */
+	private void resetZooModel() {
+		for (Question o : questions) {
+			if (o.type != Type.MODEL_OTHERS || answered[o.index] == null) continue;
+			answered[o.index] = null;
+			for (String key : o.map.keySet()) answers.add(key, UNSET);
+			answers.remove("model_restrictions");
+		}
 	}
 
 	/** Model picked from the list of compatible BioImage Model Zoo / Torchvision models. */
@@ -257,13 +293,29 @@ public class WizardModel {
 		updateVisibility();
 	}
 
-	/** Stores the result of a successful data check of the folder asked in question {@code qi}. */
-	public void setDataChecked(int qi, JsonObject dataConstraints, JsonObject sampleInfo) {
+	/**
+	 * Stores the result of a successful data check of the folder asked in question {@code qi}.
+	 *
+	 * @return whether the test images were unchecked: they no longer have the training images' channels
+	 */
+	public boolean setDataChecked(int qi, JsonObject dataConstraints, JsonObject sampleInfo) {
 		Question q = questions.get(qi);
+		Integer channelsBefore = dataChannels();
 		JsonObject dc = answers.has("data_constraints") ? answers.getAsJsonObject("data_constraints") : new JsonObject();
 		deepUpdate(dc, dataConstraints);
+		if (dataConstraints.has("DATA.PATCH_SIZE_C") && !q.firstKey().contains("GT_PATH"))
+			rawChannels.put(q.firstKey(), dataConstraints.get("DATA.PATCH_SIZE_C").getAsInt());
 		answers.add("data_constraints", dc);
 		answers.addProperty("CHECKED " + q.firstKey(), 1);
+		// The test images must have the training images' channels: they are checked again against new ones
+		Integer test = checkedChannels("DATA.TEST.PATH");
+		boolean testUnchecked = q.firstKey().equals("DATA.TRAIN.PATH") && test != null
+				&& !test.equals(rawChannels.get("DATA.TRAIN.PATH"));
+		if (testUnchecked) answers.add("CHECKED DATA.TEST.PATH", UNSET);
+		// The last folder checked would set the channels: the model takes the training images' (see dataChannels)
+		Integer channels = dataChannels();
+		if (channels != null) dc.addProperty("DATA.PATCH_SIZE_C", channels);
+		if (channelsBefore != null && !channelsBefore.equals(channels)) resetZooModel();
 		JsonObject si = answers.has("sample_info") ? answers.getAsJsonObject("sample_info") : new JsonObject();
 		String dirName = sampleInfo.has("dir_name") ? sampleInfo.get("dir_name").getAsString() : q.firstKey();
 		si.add(dirName, sampleInfo);
@@ -276,6 +328,7 @@ public class WizardModel {
 			if (chosen == null || !chosen.available) unsetChoice(o.index);
 		}
 		updateVisibility();
+		return testUnchecked;
 	}
 
 	/** Folders the wizard checks, raw images first. */
@@ -347,6 +400,7 @@ public class WizardModel {
 	/** Undoes the data check of the folder asked in question {@code qi} (e.g. the user wants another folder). */
 	public void uncheckData(int qi) {
 		answers.add("CHECKED " + questions.get(qi).firstKey(), UNSET);
+		resetZooModel();
 		updateVisibility();
 	}
 

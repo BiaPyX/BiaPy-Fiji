@@ -634,7 +634,8 @@ public class TrainingMonitor extends JPanel {
 		return l;
 	}
 
-	private static JLabel sampleTitle(String name) {
+	/** The name of a sample's image, in blue above its tiles (also used by the test predictions). */
+	static JLabel sampleTitle(String name) {
 		JLabel l = new JLabel(name);
 		l.setFont(l.getFont().deriveFont(Font.BOLD, 12f));
 		l.setForeground(BiaPyFiji.BLUE);

@@ -42,14 +42,15 @@ public class WizardFlowHarness {
 		click("Go to help");
 		snap("q2_help");
 		answer("Generate masks of different objects/regions within the image");
-		answer("No, I want to build a model from scratch");
 		answer("Train and test the model");
 		path(data + "/train/x");
-		snap("q9_checked");
+		snap("train_raw_checked");
 		path(data + "/train/y");
 		path(data + "/test/x");
 		answer("Yes");
 		path(data + "/test/y");
+		answer("No, I want to build a model from scratch");
+		answer("Quick: to check that everything works or to try BiaPy");
 		snap("summary");
 		click("Create configuration file");
 		waitIdle();
@@ -63,8 +64,13 @@ public class WizardFlowHarness {
 		click("Continue >");
 	}
 
+	/** Sets the folder, checks that the question can't be left before its data is checked, and checks it. */
 	static void path(String folder) throws Exception {
 		edt(() -> ((JTextField) find(c -> c instanceof JTextField && ((JTextField) c).isEditable())).setText(folder));
+		JTextField field = (JTextField) find(c -> c instanceof JTextField && ((JTextField) c).isEditable());
+		click("Continue >");
+		if (find(c -> c == field) == null) throw new IllegalStateException("Left the question of " + folder + " unchecked");
+		snap("unchecked_" + new File(folder).getName());
 		click("Check data");
 		waitIdle();
 		click("Continue >");

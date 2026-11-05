@@ -61,3 +61,63 @@ def test_serve(tmp_path):
     assert not results[2]["ok"]
     assert not results[3]["result"]["error"]
     assert "one image per frame" in results[4]["result"]["error_message"]
+
+
+def test_compat_fixes(monkeypatch):
+    """biapy_compat applies its fixes to BiaPy versions older than the release that includes them, and only to those."""
+    pytest.importorskip("biapy.wizard")
+    import biapy
+    from biapy.models import bmz_search
+    from biapy.wizard import config_builder
+
+    sys.path.insert(0, PYTHON_DIR)
+    import biapy_compat
+
+    seen = {}
+
+    def fake_build_config(answers, gpus=None):
+        seen["data_constraints"] = dict(answers.get("data_constraints", {}))
+        norm = {"TYPE": "zero_mean_unit_variance", "PERC_CLIP": {"ENABLE": True, "LOWER_PERC": 0.2, "UPPER_PERC": 99.8}}
+        return {"DATA": {"NORMALIZATION": norm}, "MODEL": {"SOURCE": "bmz", "BMZ": {"SOURCE_MODEL_ID": "gorgeous-whale"}}}, {}
+
+    def fake_search(callback=None, **kwargs):
+        models = [{"opts": {"DATA.PATCH_SIZE": (8, 8, c)}} for c in (1, 3)]
+        for i, m in enumerate(models):
+            callback(i + 1, len(models), m, "m{}".format(i), "")
+        return models
+
+    def fake_check_folder(folder, key, workflow, ndim, **kwargs):
+        seen["check_kwargs"] = kwargs
+        return {"error": False, "error_message": "", "data_constraints": {"DATA.PATCH_SIZE_C": 3}, "sample_info": {}}
+
+    from biapy.wizard import data_check
+
+    monkeypatch.setattr(data_check, "check_folder", fake_check_folder)
+    monkeypatch.setattr(config_builder, "build_config", fake_build_config)
+    monkeypatch.setattr(bmz_search, "list_compatible_bmz_models", fake_search)
+    restrictions = {"DATA.N_CLASSES": 5, "DATA.NORMALIZATION.TYPE": "scale_range",
+                    "DATA.NORMALIZATION.SCALE_RANGE.LOWER_PERC": 1.0}
+
+    monkeypatch.setattr(biapy, "__version__", "3.7.3")
+    cfg, _ = biapy_compat.build_config({"model_restrictions": dict(restrictions)})
+    assert seen["data_constraints"]["DATA.N_CLASSES"] == 5
+    assert cfg["DATA"]["NORMALIZATION"] == {"TYPE": "scale_range", "SCALE_RANGE": {"LOWER_PERC": 1.0}}
+    assert cfg["MODEL"]["FIND_UNUSED_PARAMETERS"]
+    calls = []
+    models = biapy_compat.list_compatible_bmz_models(nchannels=3, callback=lambda *a: calls.append(a))
+    assert [m["opts"]["DATA.PATCH_SIZE"][-1] for m in models] == [3]
+    assert calls[0][2] is None and "1 channel" in calls[0][4]
+    res = biapy_compat.check_folder("f", "DATA.TEST.PATH", "SEMANTIC_SEG", "2D", train_channels=1)
+    assert res["error"] and "training images have 1" in res["error_message"]
+    assert "train_channels" not in seen["check_kwargs"]  # unknown to that BiaPy
+    assert not biapy_compat.check_folder("f", "DATA.TEST.PATH", "SEMANTIC_SEG", "2D", train_channels=3)["error"]
+
+    # A release with the fixes: BiaPy's own result is kept (the models it lists are not filtered again)
+    monkeypatch.setattr(biapy, "__version__", biapy_compat.NEXT_RELEASE)
+    cfg, _ = biapy_compat.build_config({"model_restrictions": dict(restrictions)})
+    assert "DATA.N_CLASSES" not in seen["data_constraints"]
+    assert cfg["DATA"]["NORMALIZATION"]["TYPE"] == "zero_mean_unit_variance"
+    assert cfg["MODEL"]["FIND_UNUSED_PARAMETERS"]  # not fixed in BiaPy
+    assert len(biapy_compat.list_compatible_bmz_models(nchannels=3, callback=lambda *a: None)) == 2
+    assert not biapy_compat.check_folder("f", "DATA.TEST.PATH", "SEMANTIC_SEG", "2D", train_channels=1)["error"]
+    assert seen["check_kwargs"]["train_channels"] == 1  # BiaPy compares them itself
