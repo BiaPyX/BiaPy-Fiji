@@ -552,7 +552,7 @@ public class HomePanel extends JPanel {
 				error = t.getMessage();
 				progress.log("ERROR: " + error);
 			} catch (InterruptedException t) {
-				error = "Installation cancelled. Click 'Install BiaPy' to continue it later.";
+				error = "Installation canceled. Click 'Install BiaPy' to continue it later.";
 			} catch (Throwable t) {
 				error = t.getMessage() == null ? t.toString() : t.getMessage();
 				progress.log("ERROR: " + error);

@@ -231,7 +231,7 @@ public class BiaPyEnvManager {
 				listener.stepProgress(stepDone[0]);
 			}
 		});
-		if (currentRunner.isCancelled()) throw new InterruptedException("Installation cancelled");
+		if (currentRunner.isCancelled()) throw new InterruptedException("Installation canceled");
 		if (code == 0) return false;
 		if (networkError[0]) return true;
 		throw new IllegalStateException("pip install failed with exit code " + code + ". See the details.");
@@ -272,7 +272,7 @@ public class BiaPyEnvManager {
 	}
 
 	private void checkCancelled() throws InterruptedException {
-		if (Thread.currentThread().isInterrupted()) throw new InterruptedException("Installation cancelled");
+		if (Thread.currentThread().isInterrupted()) throw new InterruptedException("Installation canceled");
 	}
 
 	private static String abbreviate(String s) {

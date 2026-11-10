@@ -54,7 +54,7 @@ final class MetricInfo {
 		CHANNELS.put("P", "the central point or skeleton of each instance");
 		CHANNELS.put("Db", "the distance of each pixel to the border of its instance");
 		CHANNELS.put("Dc", "the distance of each pixel to the center of its instance");
-		CHANNELS.put("Dn", "the distance to the neighbouring instances");
+		CHANNELS.put("Dn", "the distance to the neighboring instances");
 		CHANNELS.put("D", "the distance map of the instances");
 		CHANNELS.put("R", "the distances from the center of each instance to its border along fixed rays (StarDist)");
 		CHANNELS.put("Gv", "the vertical component of the flows towards the center of each instance (Cellpose)");
@@ -62,7 +62,7 @@ final class MetricInfo {
 		CHANNELS.put("Gz", "the depth component of the flows towards the center of each instance (Cellpose)");
 		CHANNELS.put("H", "the horizontal distance of each pixel to the center of its instance (HoVer-Net)");
 		CHANNELS.put("V", "the vertical distance of each pixel to the center of its instance (HoVer-Net)");
-		CHANNELS.put("A", "the affinities: whether neighbouring pixels belong to the same instance");
+		CHANNELS.put("A", "the affinities: whether neighboring pixels belong to the same instance");
 		CHANNELS.put("T", "the touching areas between instances");
 		CHANNELS.put("class", "the class of each pixel");
 	}

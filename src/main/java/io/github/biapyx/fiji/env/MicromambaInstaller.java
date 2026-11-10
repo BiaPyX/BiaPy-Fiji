@@ -101,7 +101,7 @@ public class MicromambaInstaller {
 			int n;
 			long lastReport = 0;
 			while ((n = in.read(buf)) != -1) {
-				if (Thread.currentThread().isInterrupted()) throw new InterruptedException("Download cancelled");
+				if (Thread.currentThread().isInterrupted()) throw new InterruptedException("Download canceled");
 				out.write(buf, 0, n);
 				done += n;
 				if (done - lastReport > 256 * 1024) {

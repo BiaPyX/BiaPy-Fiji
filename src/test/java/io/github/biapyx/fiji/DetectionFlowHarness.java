@@ -32,7 +32,7 @@ public class DetectionFlowHarness {
 				&& ((JTextField) c).getText().equals("my_workflow"))).setText("fiji_detection_test"));
 		WizardFlowHarness.click("Start");
 		WizardFlowHarness.answer("3D images (volumes or stacks of slices)");
-		WizardFlowHarness.answer("Locate objects using points, for example, to identify the centres of nuclei (object detection)");
+		WizardFlowHarness.answer("Locate objects using points, for example, to identify the centers of nuclei (object detection)");
 		WizardFlowHarness.answer("Train a new AI model using my images");
 		WizardFlowHarness.path(raw);
 		WizardFlowHarness.snap("voxel_size");

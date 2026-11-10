@@ -44,8 +44,8 @@ final class WorkflowInfoDialog {
 				+ "objects directly: it predicts a few helper images (for example where the objects are and where their "
 				+ "borders are), and a last step, the <b>post-processing</b>, turns them into separate objects.");
 		DESCRIPTIONS.put("DETECTION", "Detection finds where the objects are, marking each one with a point at its "
-				+ "centre (e.g. to count nuclei), without drawing its shape. The model predicts how likely each pixel is "
-				+ "to be the centre of an object, and the peaks of that image become the points.");
+				+ "center (e.g. to count nuclei), without drawing its shape. The model predicts how likely each pixel is "
+				+ "to be the center of an object, and the peaks of that image become the points.");
 		DESCRIPTIONS.put("DENOISING", "Denoising removes the noise of your images while keeping their structures. With "
 				+ "Noise2Void the model learns from the noisy images themselves, without clean examples.");
 		DESCRIPTIONS.put("SUPER_RESOLUTION", "Super-resolution makes your images larger and sharper: the model predicts "
@@ -66,34 +66,34 @@ final class WorkflowInfoDialog {
 		CHANNELS.put("B", "<b>Background</b>: how likely each pixel is to be outside the objects (bright = background).");
 		CHANNELS.put("C", "<b>Contour</b>: how likely each pixel is to be on the border of an object; it separates "
 				+ "touching objects.");
-		CHANNELS.put("P", "<b>Central point</b>: how likely each pixel is to be the centre of an object, where each "
+		CHANNELS.put("P", "<b>Central point</b>: how likely each pixel is to be the center of an object, where each "
 				+ "object starts from.");
 		CHANNELS.put("P_skeleton", "<b>Skeleton</b>: how likely each pixel is to be on the central line of an object, "
 				+ "where each object starts from.");
 		CHANNELS.put("Db", "<b>Distance to the border</b>: bright in the middle of each object, dark at its border.");
-		CHANNELS.put("Dc", "<b>Distance to the centre</b>: dark at the centre of each object, brighter towards its "
+		CHANNELS.put("Dc", "<b>Distance to the center</b>: dark at the center of each object, brighter towards its "
 				+ "border.");
-		CHANNELS.put("Dn", "<b>Distance to the closest neighbour</b>: how close each pixel is to another object.");
+		CHANNELS.put("Dn", "<b>Distance to the closest neighbor</b>: how close each pixel is to another object.");
 		CHANNELS.put("D", "<b>Signed distance</b>: positive inside the objects, negative outside, zero at their "
 				+ "border.");
 		CHANNELS.put("T", "<b>Touching area</b>: where two objects touch each other.");
 		CHANNELS.put("R", "<b>Radial distances</b> (StarDist): one image per direction, each with the distance from "
 				+ "the pixel to the border of its object in that direction. They are not meant to be looked at one by one.");
-		CHANNELS.put("Gv", "<b>Vertical flow</b> (Cellpose): the vertical direction towards the centre of the object.");
-		CHANNELS.put("Gh", "<b>Horizontal flow</b> (Cellpose): the horizontal direction towards the centre of the "
+		CHANNELS.put("Gv", "<b>Vertical flow</b> (Cellpose): the vertical direction towards the center of the object.");
+		CHANNELS.put("Gh", "<b>Horizontal flow</b> (Cellpose): the horizontal direction towards the center of the "
 				+ "object.");
-		CHANNELS.put("Gz", "<b>Depth flow</b> (Cellpose): the direction towards the centre of the object along Z.");
-		CHANNELS.put("H", "<b>Horizontal distance to the centre</b> of the object (HoVer-Net): it changes sharply "
+		CHANNELS.put("Gz", "<b>Depth flow</b> (Cellpose): the direction towards the center of the object along Z.");
+		CHANNELS.put("H", "<b>Horizontal distance to the center</b> of the object (HoVer-Net): it changes sharply "
 				+ "where two objects meet.");
-		CHANNELS.put("V", "<b>Vertical distance to the centre</b> of the object (HoVer-Net): it changes sharply where "
+		CHANNELS.put("V", "<b>Vertical distance to the center</b> of the object (HoVer-Net): it changes sharply where "
 				+ "two objects meet.");
-		CHANNELS.put("Z", "<b>Depth distance to the centre</b> of the object (HoVer-Net): it changes sharply where two "
+		CHANNELS.put("Z", "<b>Depth distance to the center</b> of the object (HoVer-Net): it changes sharply where two "
 				+ "objects meet.");
 		CHANNELS.put("A", "<b>Affinities</b>: one image per direction (e.g. Z, Y and X): how likely each pixel and its "
-				+ "neighbour in that direction belong to the same object.");
-		CHANNELS.put("E_offset", "<b>Embedding offsets</b>: for each pixel, where the centre of its object is.");
+				+ "neighbor in that direction belong to the same object.");
+		CHANNELS.put("E_offset", "<b>Embedding offsets</b>: for each pixel, where the center of its object is.");
 		CHANNELS.put("E_sigma", "<b>Embedding sizes</b>: how large the object of each pixel is, along each axis.");
-		CHANNELS.put("E_seediness", "<b>Seediness</b>: how likely each pixel is to be a good centre of its object.");
+		CHANNELS.put("E_seediness", "<b>Seediness</b>: how likely each pixel is to be a good center of its object.");
 		CHANNELS.put("class", "<b>Class</b>: one image per class, how likely each pixel is to be of that class (the "
 				+ "class of each object comes from them).");
 	}
@@ -203,7 +203,7 @@ final class WorkflowInfoDialog {
 									+ "division) and as GEFF (<i>tracks.geff</i>).</li>"
 							: "");
 		case "DETECTION":
-			return "<li><i>per_image</i>: the model's raw prediction: how likely each pixel is to be the centre of an "
+			return "<li><i>per_image</i>: the model's raw prediction: how likely each pixel is to be the center of an "
 					+ "object.</li><li><i>per_image_local_max_check</i>: the points found, as an image and as a table per "
 					+ "image (<i>&lt;image&gt;_points.csv</i>) with their coordinates.</li>";
 		case "DENOISING":
@@ -299,7 +299,7 @@ final class WorkflowInfoDialog {
 		case "stardist":
 			JsonObject sd = inst.getAsJsonObject("stardist");
 			sb.append("<p><b>How the objects are built (StarDist)</b>: each object is a polygon (a polyhedron in 3D) "
-					+ "around a centre. The centres are the pixels where the model is sure there is an object, and the "
+					+ "around a center. The centers are the pixels where the model is sure there is an object, and the "
 					+ "shape comes from the radial distances.</p><ul>")
 					.append("<li><i>STARDIST.PROB_THRESH</i> (now ").append(sd.get("prob_thresh"))
 					.append("): how sure the model must be to create an object. Missing objects: lower it; false "
@@ -311,7 +311,7 @@ final class WorkflowInfoDialog {
 		case "gradient-flow":
 			JsonObject cp = inst.getAsJsonObject("cellpose");
 			sb.append("<p><b>How the objects are built (Cellpose)</b>: each pixel of the foreground follows the flows "
-					+ "towards the centre of its object, and the pixels that meet at the same centre form one object.</p><ul>")
+					+ "towards the center of its object, and the pixels that meet at the same center form one object.</p><ul>")
 					.append("<li><i>CELLPOSE.FG_THRESH</i> (now ").append(cp.get("fg_thresh"))
 					.append("): the foreground threshold. Objects too small or missing: lower it; too large: raise "
 							+ "it.</li>")
@@ -321,12 +321,12 @@ final class WorkflowInfoDialog {
 			break;
 		case "embeddings":
 			JsonObject es = inst.getAsJsonObject("embedseg");
-			sb.append("<p><b>How the objects are built (embeddings)</b>: each pixel points to the centre of its object, "
-					+ "and the pixels that point to the same place are grouped, starting from the best centres.</p><ul>")
+			sb.append("<p><b>How the objects are built (embeddings)</b>: each pixel points to the center of its object, "
+					+ "and the pixels that point to the same place are grouped, starting from the best centers.</p><ul>")
 					.append("<li><i>EMBEDSEG.FG_THRESH</i> (now ").append(es.get("fg_thresh"))
 					.append("): which pixels belong to some object. Objects too small: lower it.</li>")
 					.append("<li><i>EMBEDSEG.SEED_THRESH</i> (now ").append(es.get("seed_thresh"))
-					.append("): how good a centre must be to start an object. Missing objects: lower it; false "
+					.append("): how good a center must be to start an object. Missing objects: lower it; false "
 							+ "objects: raise it.</li></ul>");
 			break;
 		case "agglomeration":
@@ -358,7 +358,7 @@ final class WorkflowInfoDialog {
 					.append("' height='").append(ic.getIconHeight()).append("'><br><span class='small'>An example with "
 							+ "nuclei (DSB2018 dataset) and the foreground + contour representation. Top: what the model "
 							+ "predicts (<i>per_image</i>). Middle: the three steps. Bottom: the objects. Seeds and objects "
-							+ "share colours: each seed grows into one object.</span></p>");
+							+ "share colors: each seed grows into one object.</span></p>");
 		}
 		List<String> seeds = strings(ws.getAsJsonArray("seed_channels"));
 		List<String> seedThs = strings(ws.getAsJsonArray("seed_ths"));

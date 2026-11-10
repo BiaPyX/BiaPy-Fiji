@@ -145,4 +145,5 @@ Release: publishing a GitHub release whose tag matches the version in `pom.xml` 
 
 - The user commits and pushes; don't commit unless asked.
 - Comments explain why, not history.
+- User-visible text is in American English, as BiaPy's (analyze, normalize, color, center, labeled, gray, canceled).
 - No new Python dependencies; Java uses only what Fiji ships (gson, snakeyaml, commons-compress, JNA).

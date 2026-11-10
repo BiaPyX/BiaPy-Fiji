@@ -26,7 +26,7 @@ public class ModelFlowHarness {
 		WizardFlowHarness.answer("2D images");
 		WizardFlowHarness.answer("Identify and outline each individual object in the image (instance segmentation)");
 		WizardFlowHarness.answer("No");
-		WizardFlowHarness.answer("Use an existing AI model to analyse my images");
+		WizardFlowHarness.answer("Use an existing AI model to analyze my images");
 		// Skipping the data through the list of questions: the model question can't be entered
 		toc("Phases");
 		toc("Model source");

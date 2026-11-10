@@ -95,7 +95,7 @@ public class PythonBridge {
 				if (line.startsWith(RESULT_PREFIX)) resultLine[0] = line.substring(RESULT_PREFIX.length());
 				else if (log != null) log.accept(line);
 			});
-			if (runner.isCancelled()) throw new InterruptedException("Cancelled");
+			if (runner.isCancelled()) throw new InterruptedException("Canceled");
 			if (resultLine[0] == null)
 				throw new BridgeException("Python process ended (exit code " + code + ") without returning a result.");
 		} finally {
@@ -226,7 +226,7 @@ public class PythonBridge {
 			while (true) {
 				String line = lines.take();
 				if (line == EOF) {
-					if (killed) throw new InterruptedException("Cancelled");
+					if (killed) throw new InterruptedException("Canceled");
 					throw new BridgeException("Python process ended (exit code " + process.waitFor()
 							+ ") without returning a result.");
 				}

@@ -46,7 +46,7 @@ Users can also select an existing Python with BiaPy installed (HOME > "Use exist
 ```
 src/main/java/io/github/biapyx/fiji/
   BiaPy_Plugin.java          ImageJ entry point (single window per session)
-  BiaPyFiji.java             versions, links, colours, resource helpers
+  BiaPyFiji.java             versions, links, colors, resource helpers
   env/PythonEnv.java         where the Python is + environment variables to run it
   env/BiaPyEnvManager.java   installation with micromamba + pip
   env/Platform.java, Processes.java  OS checks, and stopping a job with every process it started (also on Java 8)

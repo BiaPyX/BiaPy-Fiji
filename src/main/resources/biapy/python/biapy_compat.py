@@ -149,6 +149,13 @@ def list_compatible_bmz_models(nchannels="all", callback=None, **kwargs):
     if not needed(NEXT_RELEASE):
         return search(nchannels=nchannels, callback=callback, **kwargs)
 
+    # Its package in the zoo is incomplete, so it can't be downloaded
+    from biapy.models import BMZ_MODEL_BLACKLIST
+
+    BMZ_MODEL_BLACKLIST.setdefault("romantic-shark", {
+        "all": "its package in the BioImage Model Zoo is incomplete (its documentation.md is missing), so it can't "
+        "be downloaded"})
+
     # The models were not filtered by the channels of the images
     def fits(info):
         return nchannels == "all" or info["opts"]["DATA.PATCH_SIZE"][-1] == nchannels

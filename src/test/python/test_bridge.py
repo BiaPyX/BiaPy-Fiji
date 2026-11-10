@@ -100,6 +100,9 @@ def test_compat_fixes(monkeypatch):
     restrictions = {"DATA.N_CLASSES": 5, "DATA.NORMALIZATION.TYPE": "scale_range",
                     "DATA.NORMALIZATION.SCALE_RANGE.LOWER_PERC": 1.0}
 
+    from biapy.models import BMZ_MODEL_BLACKLIST
+
+    monkeypatch.delitem(BMZ_MODEL_BLACKLIST, "romantic-shark", raising=False)  # as in 3.7.3
     monkeypatch.setattr(biapy, "__version__", "3.7.3")
     cfg, _ = biapy_compat.build_config({"model_restrictions": dict(restrictions)})
     assert seen["data_constraints"]["DATA.N_CLASSES"] == 5
@@ -109,6 +112,7 @@ def test_compat_fixes(monkeypatch):
     models = biapy_compat.list_compatible_bmz_models(nchannels=3, callback=lambda *a: calls.append(a))
     assert [m["opts"]["DATA.PATCH_SIZE"][-1] for m in models] == [3]
     assert calls[0][2] is None and "1 channel" in calls[0][4]
+    assert "incomplete" in BMZ_MODEL_BLACKLIST["romantic-shark"]["all"]
     res = biapy_compat.check_folder("f", "DATA.TEST.PATH", "SEMANTIC_SEG", "2D", train_channels=1)
     assert res["error"] and "training images have 1" in res["error_message"]
     assert "train_channels" not in seen["check_kwargs"]  # unknown to that BiaPy
