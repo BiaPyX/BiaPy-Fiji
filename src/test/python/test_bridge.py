@@ -77,8 +77,10 @@ def test_compat_fixes(monkeypatch):
 
     def fake_build_config(answers, gpus=None):
         seen["data_constraints"] = dict(answers.get("data_constraints", {}))
+        seen["answers"] = json.loads(json.dumps(answers))
         norm = {"TYPE": "zero_mean_unit_variance", "PERC_CLIP": {"ENABLE": True, "LOWER_PERC": 0.2, "UPPER_PERC": 99.8}}
-        return {"DATA": {"NORMALIZATION": norm}, "MODEL": {"SOURCE": "bmz", "BMZ": {"SOURCE_MODEL_ID": "gorgeous-whale"}}}, {}
+        return {"PROBLEM": {"TYPE": "DETECTION", "NDIM": "3D"}, "DATA": {"NORMALIZATION": norm},
+                "MODEL": {"SOURCE": "bmz", "BMZ": {"SOURCE_MODEL_ID": "gorgeous-whale"}}}, {"lines": []}
 
     def fake_search(callback=None, **kwargs):
         models = [{"opts": {"DATA.PATCH_SIZE": (8, 8, c)}} for c in (1, 3)]
@@ -111,6 +113,14 @@ def test_compat_fixes(monkeypatch):
     assert res["error"] and "training images have 1" in res["error_message"]
     assert "train_channels" not in seen["check_kwargs"]  # unknown to that BiaPy
     assert not biapy_compat.check_folder("f", "DATA.TEST.PATH", "SEMANTIC_SEG", "2D", train_channels=3)["error"]
+    data_answers = {"voxel_size DATA.TRAIN.PATH": [2.0, 0.5, 0.5], "detection_point_radius": 4, "detection_point_radius_z": "auto",
+                    "sample_info": {"DATA.TRAIN.PATH": {"fingerprint": {"kind": "images", "n_files": 2, "n_calibrated": 0, "spacing": None}}}}
+    cfg, report = biapy_compat.build_config(json.loads(json.dumps(data_answers)))
+    assert not any(k.startswith(("voxel_size", "detection_point")) for k in seen["answers"])  # unknown to that BiaPy
+    fp = seen["answers"]["sample_info"]["DATA.TRAIN.PATH"]["fingerprint"]
+    assert fp["spacing"] == [2.0, 0.5, 0.5] and fp["n_calibrated"] == 2
+    assert cfg["PROBLEM"]["DETECTION"]["CENTRAL_POINT_DILATION"] == [1, 4, 4]  # Z scaled by the voxel size
+    assert "(chosen in the Wizard)" in report["lines"][-1]
 
     # A release with the fixes: BiaPy's own result is kept (the models it lists are not filtered again)
     monkeypatch.setattr(biapy, "__version__", biapy_compat.NEXT_RELEASE)
@@ -121,3 +131,6 @@ def test_compat_fixes(monkeypatch):
     assert len(biapy_compat.list_compatible_bmz_models(nchannels=3, callback=lambda *a: None)) == 2
     assert not biapy_compat.check_folder("f", "DATA.TEST.PATH", "SEMANTIC_SEG", "2D", train_channels=1)["error"]
     assert seen["check_kwargs"]["train_channels"] == 1  # BiaPy compares them itself
+    biapy_compat.build_config(json.loads(json.dumps(data_answers)))
+    assert seen["answers"]["detection_point_radius"] == 4  # BiaPy uses them itself
+    assert seen["answers"]["sample_info"]["DATA.TRAIN.PATH"]["fingerprint"]["spacing"] is None

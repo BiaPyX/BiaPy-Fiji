@@ -36,21 +36,21 @@ public class WizardFlowHarness {
 		snap("start");
 		click("Start");
 		snap("q1");
-		click("No");
+		click("2D images");
 		click("Continue >");
 		snap("q2_workflow");
 		click("Go to help");
 		snap("q2_help");
-		answer("Generate masks of different objects/regions within the image");
-		answer("Train and test the model");
+		answer("Identify and outline different regions or structures in the image (semantic segmentation)");
+		answer("Train a new AI model and evaluate its performance on test images");
 		path(data + "/train/x");
 		snap("train_raw_checked");
 		path(data + "/train/y");
 		path(data + "/test/x");
-		answer("Yes");
+		answer("Yes: predict and evaluate the model");
 		path(data + "/test/y");
 		answer("No, I want to build a model from scratch");
-		answer("Quick: to check that everything works or to try BiaPy");
+		answer("Quick: 2% of the training steps, for a first try");
 		snap("summary");
 		click("Create configuration file");
 		waitIdle();
@@ -96,7 +96,8 @@ public class WizardFlowHarness {
 
 	static void click(String text) throws Exception {
 		edt(() -> {
-			AbstractButton b = (AbstractButton) find(c -> c instanceof AbstractButton && text.equals(((AbstractButton) c).getText()));
+			AbstractButton b = (AbstractButton) find(c -> c instanceof AbstractButton
+					&& text.equals(((AbstractButton) c).getText().replaceAll("<[^>]*>", "")));
 			if (b == null) throw new IllegalStateException("Button not found: " + text);
 			b.doClick(0);
 		});

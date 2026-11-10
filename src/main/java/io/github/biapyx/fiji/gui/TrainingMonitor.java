@@ -241,6 +241,12 @@ public class TrainingMonitor extends JPanel {
 		return logFile;
 	}
 
+	/** This run's training log, one JSON line per epoch (null until BiaPy creates the run's log). */
+	public File getTrainingLog() {
+		if (logFile == null) findLogFiles();
+		return trainingLog;
+	}
+
 	/** Reads the files written by BiaPy since the last call. Call it from a background thread. */
 	public void refresh() {
 		findLogFiles();

@@ -4,14 +4,15 @@ import io.github.biapyx.fiji.wizard.WizardModel;
 import com.google.gson.JsonObject;
 /**
  * Checks of the wizard state about the number of channels (no Python needed): the model takes the training images'
- * channels, the test images must have them, and the Model Zoo model chosen is reset when the data changes.
+ * channels, the test images must have them, and the Model Zoo model chosen is reset when the data or the model source
+ * changes.
  */
 public class WizardChannelsCheck {
 	static JsonObject dc(int c) { JsonObject o = new JsonObject(); o.addProperty("DATA.PATCH_SIZE_C", c); return o; }
 	static void check(boolean ok, String what) { if (!ok) throw new AssertionError(what); System.out.println("ok: " + what); }
 	public static void main(String[] a) {
 		WizardModel m = new WizardModel();
-		m.setChoice(m.questionFor("PROBLEM.NDIM"), 1);
+		m.setChoice(m.questionFor("PROBLEM.NDIM"), 0); // 2D
 		m.setChoice(m.questionFor("PROBLEM.TYPE"), 1);
 		m.setChoice(m.questionFor("TRAIN.ENABLE"), 2); // train and test
 		int train = m.questionFor("DATA.TRAIN.PATH"), test = m.questionFor("DATA.TEST.PATH");
@@ -40,5 +41,19 @@ public class WizardChannelsCheck {
 		check(m.setDataChecked(train, dc(3), new JsonObject()), "training re-checked with 3 channels: test unchecked");
 		check(!m.isDataChecked(m.getQuestion(test)) && m.dataChannels() == 3, "the model now takes 3 channels");
 		check(m.getAnswered(sel) == null, "the model chosen for 1 channel is reset");
+
+		// A zoo model dropped by answering another model source no longer imposes its settings
+		int source = m.questionFor("MODEL.SOURCE");
+		m.setChoice(source, 2);
+		JsonObject imposed = new JsonObject();
+		imposed.addProperty("DATA.PATCH_SIZE", "(256, 256, 1)");
+		m.selectExternalModel(sel, "nice-flamingo", "BioImage Model Zoo", imposed);
+		m.setChoice(source, 0);
+		check(!m.toJson().has("model_restrictions") && !m.isSet("MODEL.BMZ.SOURCE_MODEL_ID")
+				&& "biapy".equals(m.getAnswer("MODEL.SOURCE").getAsString()), "from scratch after a zoo model: no restrictions left");
+		m.setChoice(source, 2);
+		m.selectExternalModel(sel, "nice-flamingo", "BioImage Model Zoo", imposed);
+		m.setChoice(m.questionFor("PROBLEM.TYPE"), 2);
+		check(!m.toJson().has("model_restrictions"), "another workflow drops the zoo model's restrictions");
 	}
 }

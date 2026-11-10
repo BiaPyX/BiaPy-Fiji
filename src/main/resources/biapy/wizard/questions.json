@@ -9,17 +9,17 @@
    "id": "Q1",
    "section": 0,
    "toc": "Dimensions",
-   "text": "Are your images in 3D?",
+   "text": "What type of images are you working with?",
    "type": "choice",
    "answers": [
-    "Yes",
-    "No",
-    "No but I would like to have a 3D stack output"
+    "2D images",
+    "3D images (volumes or stacks of slices)",
+    "2D images, but I would like the results as a 3D volume"
    ],
    "map": {
     "PROBLEM.NDIM": [
-     "3D",
      "2D",
+     "3D",
      "2D"
     ],
     "TEST.ANALIZE_2D_IMGS_AS_3D_STACK": [
@@ -29,22 +29,22 @@
     ]
    },
    "visible": true,
-   "help": "<p> The purpose of this question is to determine the type of images you will use. This will help decide which deep learning model will be applied to process your images. The options are: </p> <ul> <li> <p><strong>2D images</strong>&nbsp;are considered those that can be represented as (x, y, channels). For example, (512, 1024, 2).</p> </li> <li> <p><strong>3D images</strong>&nbsp;are those that can be represented as (x, y, z, channels). For example, (400, 400, 50, 1).</p> </li> </ul> <p> The last option, &quot;No, but I would like to have a 3D stack output,&quot; refers to working with 2D images. After processing them with the deep learning model, the images will be combined in sequence to create a 3D stack. This option is useful if your 2D images together form a larger 3D volume. </p>"
+   "help": "<p> The purpose of this question is to determine the type of images you will use. This will help decide which deep learning model will be applied to process your images. The options are: </p> <ul> <li> <p><strong>2D images</strong>&nbsp;are considered those that can be represented as (x, y, channels). For example, (512, 1024, 2).</p> </li> <li> <p><strong>3D images</strong>&nbsp;are those that can be represented as (x, y, z, channels). For example, (400, 400, 50, 1).</p> </li> </ul> <p> The last option, &quot;2D images, but I would like the results as a 3D volume,&quot; refers to working with 2D images. After processing them with the deep learning model, the images will be combined in sequence to create a 3D stack. This option is useful if your 2D images together form a larger 3D volume. </p>"
   },
   {
    "id": "Q2",
    "section": 0,
    "toc": "Workflow",
-   "text": "What would you like to do? Check the Wizard Help for details about each workflow.",
+   "text": "What would you like to do with your images? Choose the option that best describes what you want to achieve. See the Wizard Help for more details and examples.",
    "type": "choice",
    "answers": [
-    "Generate masks of different objects/regions within the image",
-    "Generate masks for each object in the image",
-    "Identify circular objects (e.g. nuclei) in the image using points",
-    "Upsample images into higher resolution",
-    "Assign a label to each image",
-    "Clean noisy images",
-    "Generate new images based on an input one"
+    "Identify and outline different regions or structures in the image (semantic segmentation)",
+    "Identify and outline each individual object in the image (instance segmentation)",
+    "Locate objects using points, for example, to identify the centres of nuclei (object detection)",
+    "Increase image resolution (super-resolution)",
+    "Classify images into different categories (image classification)",
+    "Remove noise from images (denoising)",
+    "Generate new images based on existing ones (image-to-image translation)"
    ],
    "map": {
     "PROBLEM.TYPE": [
@@ -58,17 +58,17 @@
     ]
    },
    "visible": true,
-   "help": "<p> This question determines the type of workflow you want to run. Each option corresponds to a workflow implemented in BiaPy. The options are: </p> <p> <strong>&#8226;&quot;Generate masks of different objects/regions within the image&quot;</strong>&nbsp; refers to the workflow called &quot;Semantic segmentation&quot;. The goal of this workflow is to assign a class to each pixel (or voxel) of the input image, thus producing a label image with semantic masks. The simplest case would be binary classification, as in the figure depicted below. There, only two labels are present in the label image: black pixels (usually with value 0) represent the background, and white pixels represent the foreground (the wound in this case, usually labeled with 1 or 255 value). </p> <p align='center'><img style='float:center;' src='{img:semantic_seg_collage.png}' width='200px'/></p> <br><p> Find more information about semantic segmentation workflow in <a href='https://biapy.readthedocs.io/en/latest/workflows/semantic_segmentation.html'>its documentation</a>. </p> <p> <strong>&#8226;&quot;Generate masks for each object in the image&quot;</strong>&nbsp;refers to the workflow called &quot;Instance segmentation&quot;. The goal of this workflow is to assign a unique ID, i.e. an integer value, to each object of the input image, thus producing a label image with instance masks. An example of this task is displayed in the figure below, with an electron microscopy image used as input (left) and its corresponding instance label image identifying each individual mitochondrion (right). Each color in the mask image corresponds to a unique object. </p> <p align='center'><img style='float:center;' src='{img:instance_seg_collage.png}' width='200px'/></p> <br><p> If your images are the frames of a time-lapse, the objects can also be <strong>tracked</strong> over time: the next question asks about it. </p> <p>Find more information about instance segmentation workflow in <a href='https://biapy.readthedocs.io/en/latest/workflows/instance_segmentation.html'>its documentation</a>.</p> <p> <strong>&#8226;&quot;Identify circular objects (e.g. nuclei) in the image using points&quot;</strong>&nbsp;refers to the workflow called &quot;Detection&quot;. The goal of this workflow is to localize objects in the input image, not requiring a pixel-level class. Common strategies produce either bounding boxes containing the objects or individual points at their center of mass, which is the one adopted by BiaPy. </p> <p> An example of this task is displayed in the figure below (credits to <a href='https://zenodo.org/records/3715492#.Y4m7FjPMJH6'>Jukkala & Jacquemet</a>), with a fluorescence microscopy image used as input (left) and its corresponding nuclei detection results (right). Each red dot in the right image corresponds to a unique predicted object. </p> <p align='center'><img style='float:center;' src='{img:detection_collage.png}' width='200px'/></p> <br><p> Find more information about detection workflow in <a href='https://biapy.readthedocs.io/en/latest/workflows/detection.html'>its documentation</a>. </p> <p> <strong>&#8226;&quot;Clean noisy images&quot;</strong>&nbsp;refers to the workflow called &quot;Denoising&quot;. The goal of this workflow is to remove noise from the input images. BiaPy makes use of <a href='https://openaccess.thecvf.com/content_CVPR_2019/html/Krull_Noise2Void_-_Learning_Denoising_From_Single_Noisy_Images_CVPR_2019_paper.html'>Noise2Void</a> with any of the U-Net-like models provided. The main advantage of Noise2Void is neither relying on noise image pairs nor clean target images since frequently clean images are simply unavailable. If you do have clean versions of your noisy images, BiaPy can also use them as targets (supervised training): the Wizard will ask about it. </p> <p> An example of this task is displayed in the figure below, with an noisy fluorescence image and its corresponding denoised output. This image was obtained from a <a href='https://zenodo.org/record/5156913'>Convallaria dataset</a> used in <a href='https://openaccess.thecvf.com/content_CVPR_2019/html/Krull_Noise2Void_-_Learning_Denoising_From_Single_Noisy_Images_CVPR_2019_paper.html'>Noise2Void</a> project. </p> <p align='center'><img style='float:center;' src='{img:denoising_collage.png}' width='200px'/></p> <br><p> Find more information about denoising workflow in <a href='https://biapy.readthedocs.io/en/latest/workflows/denoising.html'>its documentation</a>. </p> <p> <strong>&#8226;&quot;Upsample images into higher resolution&quot;</strong>&nbsp;refers to the workflow called &quot;Super resolution&quot;. The goal of this workflow is to reconstruct high-resolution (HR) images from low-resolution (LR) ones. If there is a difference in the size of the LR and HR images, typically determined by a scale factor (x2, x4), this task is known as single-image super-resolution. If the size of the LR and HR images is the same, this task is usually referred to as image restoration. </p> <p> An example of this task is displayed in the figure below, with a LR fluorescence microscopy image used as input (left) and its corresponding HR image (x2 scale factor). Credits of this image to <a href='https://figshare.com/articles/dataset/BioSR/13264793'>F-actin dataset by Qiao et al</a>. </p> <p align='center'><img style='float:center;' src='{img:sr_collage.png}' width='200px'/></p> <br><p> Find more information about super-resolution workflow in <a href='https://biapy.readthedocs.io/en/latest/workflows/super_resolution.html'>its documentation</a>. </p> <p> <strong>&#8226;&quot;Assign a label to each image&quot;</strong>&nbsp;refers to the workflow called &quot;Classification&quot;. The goal of this workflow is to assign a label to the input image. In the figure below a few examples of this workflow's input are depicted where each image is classified as a result. Images obtained from <a href='https://medmnist.com/'>MedMNIST v2</a>, concretely from DermaMNIST dataset which is a large collection of multi-source dermatoscopic images of common pigmented skin lesions. </p> <p align='center'><img style='float:center;' src='{img:classification_collage.png}' width='200px'/></p> <br><p> Find more information about classification workflow in <a href='https://biapy.readthedocs.io/en/latest/workflows/classification.html'>its documentation</a>. </p> <p> <strong>&#8226;&quot;Generate new images based on an input one&quot;</strong>&nbsp;refers to the workflow called &quot;Image to image&quot;. The goal of this workflow aims at translating/mapping input images into target images. This workflow is as the super-resolution one but with no upsampling, e.g. with the scaling factor to x1. </p> <p> In the figure below an example of paired microscopy images (brightfield) is depicted. The images were obtained from <a href='https://lightmycells.grand-challenge.org/'>Light My Cells dataset</a>. </p> <p align='center'><img style='float:center;' src='{img:i2i_collage.png}' width='200px'/></p> <br><p> Find more information about image to image workflow in <a href='https://biapy.readthedocs.io/en/latest/workflows/image_to_image.html'>its documentation</a>. </p>"
+   "help": "<p> This question determines the type of workflow you want to run. Each option corresponds to a workflow implemented in BiaPy. The options are: </p> <p> <strong>&#8226;&quot;Identify and outline different regions or structures in the image (semantic segmentation)&quot;</strong>&nbsp; refers to the workflow called &quot;Semantic segmentation&quot;. The goal of this workflow is to assign a class to each pixel (or voxel) of the input image, thus producing a label image with semantic masks. The simplest case would be binary classification, as in the figure depicted below. There, only two labels are present in the label image: black pixels (usually with value 0) represent the background, and white pixels represent the foreground (the wound in this case, usually labeled with 1 or 255 value). </p> <p align='center'><img style='float:center;' src='{img:semantic_seg_collage.png}' width='200px'/></p> <br><p> Find more information about semantic segmentation workflow in <a href='https://biapy.readthedocs.io/en/latest/workflows/semantic_segmentation.html'>its documentation</a>. </p> <p> <strong>&#8226;&quot;Identify and outline each individual object in the image (instance segmentation)&quot;</strong>&nbsp;refers to the workflow called &quot;Instance segmentation&quot;. The goal of this workflow is to assign a unique ID, i.e. an integer value, to each object of the input image, thus producing a label image with instance masks. An example of this task is displayed in the figure below, with an electron microscopy image used as input (left) and its corresponding instance label image identifying each individual mitochondrion (right). Each color in the mask image corresponds to a unique object. </p> <p align='center'><img style='float:center;' src='{img:instance_seg_collage.png}' width='200px'/></p> <br><p> If your images are the frames of a time-lapse, the objects can also be <strong>tracked</strong> over time: the next question asks about it. </p> <p>Find more information about instance segmentation workflow in <a href='https://biapy.readthedocs.io/en/latest/workflows/instance_segmentation.html'>its documentation</a>.</p> <p> <strong>&#8226;&quot;Locate objects using points, for example, to identify the centres of nuclei (object detection)&quot;</strong>&nbsp;refers to the workflow called &quot;Detection&quot;. The goal of this workflow is to localize objects in the input image, not requiring a pixel-level class. Common strategies produce either bounding boxes containing the objects or individual points at their center of mass, which is the one adopted by BiaPy. </p> <p> An example of this task is displayed in the figure below (credits to <a href='https://zenodo.org/records/3715492#.Y4m7FjPMJH6'>Jukkala & Jacquemet</a>), with a fluorescence microscopy image used as input (left) and its corresponding nuclei detection results (right). Each red dot in the right image corresponds to a unique predicted object. </p> <p align='center'><img style='float:center;' src='{img:detection_collage.png}' width='200px'/></p> <br><p> Find more information about detection workflow in <a href='https://biapy.readthedocs.io/en/latest/workflows/detection.html'>its documentation</a>. </p> <p> <strong>&#8226;&quot;Remove noise from images (denoising)&quot;</strong>&nbsp;refers to the workflow called &quot;Denoising&quot;. The goal of this workflow is to remove noise from the input images. BiaPy makes use of <a href='https://openaccess.thecvf.com/content_CVPR_2019/html/Krull_Noise2Void_-_Learning_Denoising_From_Single_Noisy_Images_CVPR_2019_paper.html'>Noise2Void</a> with any of the U-Net-like models provided. The main advantage of Noise2Void is neither relying on noise image pairs nor clean target images since frequently clean images are simply unavailable. If you do have clean versions of your noisy images, BiaPy can also use them as targets (supervised training): the Wizard will ask about it. </p> <p> An example of this task is displayed in the figure below, with an noisy fluorescence image and its corresponding denoised output. This image was obtained from a <a href='https://zenodo.org/record/5156913'>Convallaria dataset</a> used in <a href='https://openaccess.thecvf.com/content_CVPR_2019/html/Krull_Noise2Void_-_Learning_Denoising_From_Single_Noisy_Images_CVPR_2019_paper.html'>Noise2Void</a> project. </p> <p align='center'><img style='float:center;' src='{img:denoising_collage.png}' width='200px'/></p> <br><p> Find more information about denoising workflow in <a href='https://biapy.readthedocs.io/en/latest/workflows/denoising.html'>its documentation</a>. </p> <p> <strong>&#8226;&quot;Increase image resolution (super-resolution)&quot;</strong>&nbsp;refers to the workflow called &quot;Super resolution&quot;. The goal of this workflow is to reconstruct high-resolution (HR) images from low-resolution (LR) ones. If there is a difference in the size of the LR and HR images, typically determined by a scale factor (x2, x4), this task is known as single-image super-resolution. If the size of the LR and HR images is the same, this task is usually referred to as image restoration. </p> <p> An example of this task is displayed in the figure below, with a LR fluorescence microscopy image used as input (left) and its corresponding HR image (x2 scale factor). Credits of this image to <a href='https://figshare.com/articles/dataset/BioSR/13264793'>F-actin dataset by Qiao et al</a>. </p> <p align='center'><img style='float:center;' src='{img:sr_collage.png}' width='200px'/></p> <br><p> Find more information about super-resolution workflow in <a href='https://biapy.readthedocs.io/en/latest/workflows/super_resolution.html'>its documentation</a>. </p> <p> <strong>&#8226;&quot;Classify images into different categories (image classification)&quot;</strong>&nbsp;refers to the workflow called &quot;Classification&quot;. The goal of this workflow is to assign a label to the input image. In the figure below a few examples of this workflow's input are depicted where each image is classified as a result. Images obtained from <a href='https://medmnist.com/'>MedMNIST v2</a>, concretely from DermaMNIST dataset which is a large collection of multi-source dermatoscopic images of common pigmented skin lesions. </p> <p align='center'><img style='float:center;' src='{img:classification_collage.png}' width='200px'/></p> <br><p> Find more information about classification workflow in <a href='https://biapy.readthedocs.io/en/latest/workflows/classification.html'>its documentation</a>. </p> <p> <strong>&#8226;&quot;Generate new images based on existing ones (image-to-image translation)&quot;</strong>&nbsp;refers to the workflow called &quot;Image to image&quot;. The goal of this workflow aims at translating/mapping input images into target images. This workflow is as the super-resolution one but with no upsampling, e.g. with the scaling factor to x1. </p> <p> In the figure below an example of paired microscopy images (brightfield) is depicted. The images were obtained from <a href='https://lightmycells.grand-challenge.org/'>Light My Cells dataset</a>. </p> <p align='center'><img style='float:center;' src='{img:i2i_collage.png}' width='200px'/></p> <br><p> Find more information about image to image workflow in <a href='https://biapy.readthedocs.io/en/latest/workflows/image_to_image.html'>its documentation</a>. </p>"
   },
   {
    "id": "Q3",
    "section": 0,
    "toc": "Tracking",
-   "text": "Are your images the frames of a time-lapse whose objects you want to track over time?",
+   "text": "Are your images part of a time-lapse sequence, and would you like to track objects over time?",
    "type": "choice",
    "answers": [
     "No",
-    "Yes, segment each frame and track the objects across frames"
+    "Yes, I want to identify objects in each frame and track them over time"
    ],
    "map": {
     "PROBLEM.TRACKING.ENABLE": [
@@ -96,12 +96,12 @@
    "id": "Q4",
    "section": 1,
    "toc": "Phases",
-   "text": "What do you want to do?",
+   "text": "What would you like to do with BiaPy?",
    "type": "choice",
    "answers": [
-    "Train a model",
-    "Test a model",
-    "Train and test the model"
+    "Train a new AI model using my images",
+    "Use an existing AI model to analyse my images",
+    "Train a new AI model and evaluate its performance on test images"
    ],
    "map": {
     "TRAIN.ENABLE": [
@@ -116,7 +116,7 @@
     ]
    },
    "visible": true,
-   "help": "<p> This question is meant to determine which phases of the workflow you want to perform. </p> <p> Before using a deep learning model, it needs to be trained. The goal is to train the model on a specific task, then apply it to new images. For instance, you might train a model to classify images based on their labels. If the training is successful, the model should be able to classify new images automatically. This final phase is known as 'Test', sometimes referred to as 'Inference' or 'Prediction', which all describe the process of applying the model's knowledge to new data. </p>"
+   "help": "<p>A deep learning model must be trained before it can be used. Training teaches it the task from images whose result you already have (the ground truth). Once trained, the model is applied to other images: BiaPy calls this phase <strong>test</strong>, and it covers two uses:</p><ul><li><p><strong>Prediction</strong> (also called inference): you want the results of new images, e.g. the masks of the cells in them. You only need the images.</p></li><li><p><strong>Evaluation</strong>: you want to know how well the model works. You also give the ground truth of the test images, and BiaPy compares the model's results with it and reports metrics (e.g. IoU or F1). A later question asks whether you have it.</p></li></ul><p>The options are:</p><ul><li><p><strong>Train a new AI model</strong>: only training, e.g. to apply the model later.</p></li><li><p><strong>Use an existing AI model</strong>: no training. You will choose the model later: one you trained with BiaPy or a pretrained one from the BioImage Model Zoo.</p></li><li><p><strong>Train a new AI model and evaluate its performance</strong>: the model is trained and then applied to test images that were not used to train it. It is evaluated if you have their ground truth; otherwise you only get its predictions.</p></li></ul>"
   },
   {
    "toc": "Clean targets",
@@ -150,7 +150,7 @@
    "id": "Q6",
    "section": 1,
    "toc": "Train data (raw)",
-   "text": "Could you please specify the location of the training raw image folder? After that, click on the 'Check data' button to analyze the data.",
+   "text": "Could you please specify the location of the training raw image folder? Choose it (step 1) and then check its data (step 2).",
    "type": "path",
    "answers": [],
    "map": {
@@ -171,8 +171,42 @@
   {
    "id": "Q7",
    "section": 1,
+   "toc": "Train data voxel size",
+   "text": "Your training images have no voxel size in their metadata. If you know it, please type it: the network is designed for it.",
+   "type": "voxel_size",
+   "answers": [],
+   "map": {
+    "voxel_size DATA.TRAIN.PATH": ""
+   },
+   "visible": false,
+   "condition": {
+    "and_cond": [
+     [
+      "PROBLEM.NDIM",
+      "3D"
+     ],
+     [
+      "TRAIN.ENABLE",
+      true
+     ],
+     [
+      "CHECKED DATA.TRAIN.PATH",
+      1
+     ],
+     [
+      "UNCALIBRATED DATA.TRAIN.PATH",
+      true
+     ]
+    ],
+    "or_cond": []
+   },
+   "help": "<p>The images checked have no voxel size (the size of a voxel along Z, Y and X) in their metadata, which is common in TIFF files saved by other programs.</p><p>Microscopy stacks are often coarser along Z than in X and Y: e.g. voxels of 2 x 0.5 x 0.5 &micro;m are 4 times taller than wide. BiaPy, like <a href='https://www.nature.com/articles/s41592-020-01008-z'>nnU-Net</a>, designs the network for your 3D images with it: along such a Z axis the network shrinks the images less, so that it sees objects with the same proportions in all the directions. Only the proportion between Z and XY matters, so any unit works as long as the three values use the same one (BiaPy assumes &micro;m).</p><p>You can usually find the voxel size in the microscope's acquisition settings, or in Fiji with <em>Image &gt; Properties...</em> on images that still have it (e.g. the original files of the microscope). If you don't know it, leave the fields empty: the images are then taken as if their voxels were cubes or, in segmentation, the proportion is estimated from the shape of the objects in the masks.</p>"
+  },
+  {
+   "id": "Q8",
+   "section": 1,
    "toc": "Train target (ground truth)",
-   "text": "Could you please specify the location of the training ground truth (target) folder? After that, click on the 'Check data' button to analyze the data.",
+   "text": "Could you please specify the location of the training ground truth (target) folder? Choose it (step 1) and then check its data (step 2).",
    "type": "path",
    "answers": [],
    "map": {
@@ -223,10 +257,10 @@
    }
   },
   {
-   "id": "Q8",
+   "id": "Q9",
    "section": 1,
    "toc": "Test data (raw)",
-   "text": "Could you please specify the location of the test raw image folder? After that, click on the 'Check data' button to analyze the data.",
+   "text": "Could you please specify the location of the test raw image folder? Choose it (step 1) and then check its data (step 2).",
    "type": "path",
    "answers": [],
    "map": {
@@ -245,14 +279,14 @@
    }
   },
   {
-   "id": "Q9",
+   "id": "Q10",
    "section": 1,
    "toc": "Test target data availability",
-   "text": "Do you have test ground truth (target) data?",
+   "text": "Do you have the ground truth (target) of the test images? With it, the model is also evaluated: its results are compared with the ground truth to measure how well it works.",
    "type": "choice",
    "answers": [
-    "No",
-    "Yes"
+    "No: only predict (apply the model)",
+    "Yes: predict and evaluate the model"
    ],
    "map": {
     "DATA.TEST.LOAD_GT": [
@@ -305,17 +339,17 @@
    }
   },
   {
-   "id": "Q10",
+   "id": "Q11",
    "section": 1,
    "toc": "Test target (ground truth)",
-   "text": "Could you please specify the location of the test ground truth (target) folder? After that, click on the 'Check data' button to analyze the data.",
+   "text": "Could you please specify the location of the test ground truth (target) folder? Choose it (step 1) and then check its data (step 2).",
    "type": "path",
    "answers": [],
    "map": {
     "DATA.TEST.GT_PATH": ""
    },
    "visible": false,
-   "help": "<p> In this step, you need to specify the directory where the test target data, also known as 'ground truth', is located. This target data will be used to train the network. </p> <p> The 'Check data' button will verify that the files in the selected folder can be read properly by analyzing them one by one. This process may take some time, but it ensures that the data will be correctly read by BiaPy later. </p> <p> The target and its verification vary depending on the workflow: </p> <ul> <li> For <strong>Semantic segmentation</strong>, single-channel images are expected, specifically semantic masks. In these masks, each pixel will have a specific integer value corresponding to the class it belongs to. The checks performed include: 1) ensuring all images can be read correctly; 2) verifying that all images have the same number of input channels. Additionally, the number of classes to predict will be automatically extracted based on the different classes found in the images. </li> <li> For <strong>Instance segmentation</strong>, one or two-channel images are expected. The first channel must always contain the instance masks, where each pixel has an integer value representing the object it belongs to. If two channels are provided, the second channel should contain the class of each instance. The checks performed include: 1) ensuring all images can be read correctly; 2) verifying that all images have the same number of input channels. If two channels are present, as in semantic segmentation, the number of classes to predict will be automatically extracted from the different classes found. </li> <li> For <strong>Detection</strong>, files with the coordinates of object centers (centroids) are expected. The checks include: 1) ensuring the files can be read correctly; 2) verifying that the required columns for creating the coordinates are present in each file. Additionally, if the files contain a 'class' column, the number of classes will automatically be set to the highest value found in that column across all files. </li> <li> For <strong>Super-resolution</strong>, high-resolution images are expected, meaning these images will be 2x or 4x larger than the versions in the 'Train data (raw)' folder from the previous step. The checks include: 1) ensuring all images can be read correctly; 2) verifying that all images have the same number of input channels; 3) checking that all images are within the same value range. For example, if the images are uint8, their values should be between 0 and 255 across all images. </li> <li> For <strong>Image-to-Image</strong>, images are expected. The checks include: 1) ensuring all images can be read correctly; 2) verifying that all images have the same number of input channels; 3) checking that all images are within the same value range. For instance, if the images are uint8, the values should range between 0 and 255 across all images. </li> </ul><p>For <strong>Denoising</strong> (only when clean targets are available): the clean version of each noisy image, with the same size.</p>",
+   "help": "<p> In this step, you need to specify the directory where the test target data, also known as 'ground truth', is located. BiaPy compares the model's results on the test images with it to measure how well the model works (evaluation). </p> <p> The 'Check data' button will verify that the files in the selected folder can be read properly by analyzing them one by one. This process may take some time, but it ensures that the data will be correctly read by BiaPy later. </p> <p> The target and its verification vary depending on the workflow: </p> <ul> <li> For <strong>Semantic segmentation</strong>, single-channel images are expected, specifically semantic masks. In these masks, each pixel will have a specific integer value corresponding to the class it belongs to. The checks performed include: 1) ensuring all images can be read correctly; 2) verifying that all images have the same number of input channels. Additionally, the number of classes to predict will be automatically extracted based on the different classes found in the images. </li> <li> For <strong>Instance segmentation</strong>, one or two-channel images are expected. The first channel must always contain the instance masks, where each pixel has an integer value representing the object it belongs to. If two channels are provided, the second channel should contain the class of each instance. The checks performed include: 1) ensuring all images can be read correctly; 2) verifying that all images have the same number of input channels. If two channels are present, as in semantic segmentation, the number of classes to predict will be automatically extracted from the different classes found. </li> <li> For <strong>Detection</strong>, files with the coordinates of object centers (centroids) are expected. The checks include: 1) ensuring the files can be read correctly; 2) verifying that the required columns for creating the coordinates are present in each file. Additionally, if the files contain a 'class' column, the number of classes will automatically be set to the highest value found in that column across all files. </li> <li> For <strong>Super-resolution</strong>, high-resolution images are expected, meaning these images will be 2x or 4x larger than the versions in the 'Train data (raw)' folder from the previous step. The checks include: 1) ensuring all images can be read correctly; 2) verifying that all images have the same number of input channels; 3) checking that all images are within the same value range. For example, if the images are uint8, their values should be between 0 and 255 across all images. </li> <li> For <strong>Image-to-Image</strong>, images are expected. The checks include: 1) ensuring all images can be read correctly; 2) verifying that all images have the same number of input channels; 3) checking that all images are within the same value range. For instance, if the images are uint8, the values should range between 0 and 255 across all images. </li> </ul><p>For <strong>Denoising</strong> (only when clean targets are available): the clean version of each noisy image, with the same size.</p>",
    "condition": {
     "any_of": [
      {
@@ -367,7 +401,49 @@
    }
   },
   {
-   "id": "Q11",
+   "id": "Q12",
+   "section": 1,
+   "toc": "Test data voxel size",
+   "text": "Your test images have no voxel size in their metadata. If you know it, please type it: it is used to compare the points detected with the ground truth ones.",
+   "type": "voxel_size",
+   "answers": [],
+   "map": {
+    "voxel_size DATA.TEST.PATH": ""
+   },
+   "visible": false,
+   "condition": {
+    "and_cond": [
+     [
+      "PROBLEM.NDIM",
+      "3D"
+     ],
+     [
+      "TRAIN.ENABLE",
+      false
+     ],
+     [
+      "PROBLEM.TYPE",
+      "DETECTION"
+     ],
+     [
+      "DATA.TEST.LOAD_GT",
+      true
+     ],
+     [
+      "CHECKED DATA.TEST.PATH",
+      1
+     ],
+     [
+      "UNCALIBRATED DATA.TEST.PATH",
+      true
+     ]
+    ],
+    "or_cond": []
+   },
+   "help": "<p>The test images checked have no voxel size (the size of a voxel along Z, Y and X) in their metadata. When the points detected are compared with the ground truth ones, their distances along Z are scaled by it: a point one slice away is farther than one pixel away in XY when the voxels are taller than wide.</p><p>You can usually find it in the microscope's acquisition settings, or in Fiji with <em>Image &gt; Properties...</em> on images that still have it. Only the proportion between Z and XY matters. If you don't know it, leave the fields empty: the voxels are then taken as cubes.</p>"
+  },
+  {
+   "id": "Q13",
    "section": 2,
    "toc": "Model source",
    "text": "Do you want to use a pre-trained model?",
@@ -398,7 +474,7 @@
    "help": "<p> This question determines how the deep learning model will be built. Based on your choice, additional questions may appear to guide the model setup process. </p> <p> Before using a deep learning model, it must be trained. The idea is to train the model on a specific task and then apply it to new images. For example, you could train a model to classify images based on their labels. If the training is successful, the model should be able to classify new images automatically. </p> <p> Training is a crucial step to ensure good results, but it requires labeled data, also known as 'ground truth'. Using the image classification example, you would need to label the training images first, like 'image1.png' as class 1, 'image2.png' as class 2, etc. Because training can be time-consuming, using a pre-trained model can be a major advantage. A pre-trained model has already been trained on a dataset and has some level of knowledge. </p> <p> If your images are similar to those used to train the pre-trained model, you might get good results without retraining it. If not, having similar images will at least make the retraining process faster and require fewer images. That's why it’s always a good idea to check for available pre-trained models that match your needs. Here are the options available: </p> <ul> <li> <p><strong>'No, I want to build a model from scratch'</strong>&nbsp; This option configures BiaPy to create a model from the ground up. No additional input will be required, and BiaPy will automatically configure the model based on the selected workflow and image dimensions.</p> </li> <li> <p><strong>'Yes, I have a model previously trained in BiaPy'</strong>&nbsp; Choose this option if you already have a model trained with BiaPy. The model must be stored in the folder you’ve selected for saving results, specifically in the 'checkpoints' folder, as a file with a '.pth' extension. You’ll need to specify this file when prompted after selecting this option.</p> </li> <li> <p><strong>'Yes, I want to check if there is a pretrained model I can use'</strong>&nbsp; This option allows you to load a pre-trained model from an external source. Currently, BiaPy supports loading models from the <a href='https://bioimage.io/#/'>BioImage Model Zoo</a>. Depending on the workflow and image dimensions, you can search for compatible models to use.</p> </li> </ul>"
   },
   {
-   "id": "Q12",
+   "id": "Q14",
    "section": 2,
    "toc": "Path to model",
    "text": "Please select the pretrained model trained with BiaPy before:",
@@ -424,7 +500,7 @@
    }
   },
   {
-   "id": "Q13",
+   "id": "Q15",
    "section": 2,
    "toc": "Select model",
    "text": "Please select a pretrained model by pressing 'Find models' below. Only the models that fit your images (dimensions and number of channels) are listed. This process requires internet connection and may take a while.",
@@ -469,7 +545,7 @@
    }
   },
   {
-   "id": "Q14",
+   "id": "Q16",
    "section": 2,
    "toc": "Instance representation",
    "text": "How should the network represent the instances? The options shown suit the shape of the instances in your training masks.",
@@ -556,13 +632,40 @@
    "help": "<p>Instance segmentation networks do not predict the instances directly but an intermediate <strong>representation</strong> of them (e.g. their foreground and contours), from which the instances are built afterwards. Which one works best depends on the shape of the instances.</p><p>When the training masks were checked, the shape of their instances was measured (size, convexity, elongation, branching, how often they touch each other and whether they are star-convex, i.e. every point sees their center in a straight line). Only the representations that suit them are offered, and the recommended one is marked. The others are listed after them with the reason why they are not offered.</p><ul><li><strong>Foreground + contour</strong>: works for any shape, the contours separate touching instances.</li><li><strong>Foreground + central point</strong> / <strong>distance to the border</strong>: compact, roundish instances, marked by a single point or distance peak.</li><li><strong>Foreground + skeleton</strong>: elongated, thin or branched instances.</li><li><strong>StarDist</strong>: star-convex instances, e.g. nuclei, even when crowded.</li><li><strong>Cellpose</strong> flows: irregular, crowded cells.</li><li><strong>HoVer-Net</strong>: compact instances such as nuclei in histology images.</li><li><strong>Affinities</strong>: dense 3D instances that fill the volume, such as neurons in electron microscopy.</li></ul>"
   },
   {
-   "id": "Q15",
+   "id": "Q17",
+   "section": 2,
+   "toc": "Point size",
+   "text": "How big should each point be when the model learns it? Every point of your annotations becomes a small disk (a ball in 3D) around it, the target the model learns to predict. Choose its radius (step 1) and, if you want, see it on your training images (step 2).",
+   "type": "point_size",
+   "answers": [],
+   "map": {
+    "detection_point_radius": "",
+    "detection_point_radius_z": ""
+   },
+   "visible": false,
+   "condition": {
+    "and_cond": [
+     [
+      "PROBLEM.TYPE",
+      "DETECTION"
+     ],
+     [
+      "TRAIN.ENABLE",
+      true
+     ]
+    ],
+    "or_cond": []
+   },
+   "help": "<p>To learn to detect points, the model is trained to predict a small disk around each annotated point (a ball in 3D images). This question sets its radius.</p><ul><li><p><strong>Automatic</strong>: a quarter of the distance between the closest points of your annotations, between 1 and 5 pixels, so that the disks of neighbouring objects do not touch. That is why different datasets get different radii.</p></li><li><p><strong>Manual</strong>, a radius you type in pixels: bigger disks are easier to learn and tolerate annotations that are not exactly at the center of the objects, but the disks of neighbouring objects may touch and their points merge. As a guide, use about a quarter of the size of your objects, and less than half the distance between the centers of the closest ones.</p></li></ul><p>In 3D images the points become balls, whose radius along Z can differ from the one in X and Y: the voxels of microscopy stacks are often taller than wide, so an object spans fewer slices than pixels. Automatically, or if you leave it empty, the radius along Z is the one in XY scaled by the voxel size (e.g. with voxels 4 times taller than wide, 4 pixels become 1 slice). 0 marks each point only in its own slice. As a guide, type about a quarter of the number of slices your objects span.</p><p><strong>Show the points</strong> draws the radius chosen on parts of some training images, as the model will learn it: the disks should cover the center of the objects without touching the ones of their neighbours. The summary of the configuration shows the radius used.</p>"
+  },
+  {
+   "id": "Q18",
    "toc": "Training length",
-   "text": "How long should the training be?",
+   "text": "How long should the training be? Only the number of training steps changes: the model and the data are the same.",
    "type": "choice",
    "answers": [
-    "Quick: to check that everything works or to try BiaPy",
-    "Complete: for the best results (it can take a day)"
+    "Quick: 2% of the training steps, for a first try",
+    "Complete: all the training steps (it can take a day)"
    ],
    "map": {
     "training_length": [
@@ -580,7 +683,7 @@
     ],
     "or_cond": []
    },
-   "help": "<p>How much the model is trained, which decides how long it takes:</p><ul><li><p><strong>Quick</strong>: a short training, to check that the data and the configuration work, or to see how BiaPy works, e.g. in a course. In segmentation and detection it is 2% of a complete training: on a recent NVIDIA GPU about 20 minutes for 2D images and 35 minutes for 3D ones (longer on laptops, Apple Silicon or without a GPU). The results are usually already reasonable, but not the best the model can give.</p></li><li><p><strong>Complete</strong>: as long as <a href='https://github.com/MIC-DKFZ/nnUNet'>nnU-Net</a>, a reference method for biomedical segmentation, trains: 1000 epochs of 250 batches. It gives the best results but can take a day on such a GPU. It stops earlier when the model stops improving (on the validation data).</p></li></ul><p>A quick training can be continued later: select the model it produced (<em>checkpoints</em> folder of the job) as a pretrained BiaPy model and train it again.</p>",
+   "help": "<p>How many training steps (batches of patches) the model is trained for, which decides how long it takes. <strong>Only the number of steps changes</strong>: the model, the patch size, the training images and the data augmentation are the same in both.</p><ul><li><p><strong>Quick</strong>: a short training, to check that the data and the configuration work, or to see how BiaPy works, e.g. in a course. In segmentation and detection it is 2% of the steps of a complete training (20 epochs instead of 1000), and it does not stop early: on a recent NVIDIA GPU about 20 minutes for 2D images and 35 minutes for 3D ones (longer on laptops, Apple Silicon or without a GPU). In the other workflows, and when a pretrained model is trained further, it is 20% of the usual number of epochs. The results are usually already reasonable, but not the best the model can give.</p></li><li><p><strong>Complete</strong>: as long as <a href='https://www.nature.com/articles/s41592-020-01008-z'>nnU-Net</a>, a reference method for biomedical segmentation, trains: 1000 epochs of 250 batches. It gives the best results but can take a day on such a GPU. It stops earlier when the model stops improving (on the validation data).</p></li></ul><p>A quick training can be continued later: select the model it produced (<em>checkpoints</em> folder of the job) as a pretrained BiaPy model and train it again.</p>",
    "section": 2
   }
  ]

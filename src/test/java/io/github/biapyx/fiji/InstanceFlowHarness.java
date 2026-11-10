@@ -29,13 +29,13 @@ public class InstanceFlowHarness {
 		WizardFlowHarness.edt(() -> ((JTextField) WizardFlowHarness.find(c -> c instanceof JTextField
 				&& ((JTextField) c).getText().equals("my_workflow"))).setText("fiji_instance_test"));
 		WizardFlowHarness.click("Start");
-		WizardFlowHarness.click("No");
-		WizardFlowHarness.click("Continue >");
-		WizardFlowHarness.answer("Generate masks for each object in the image");
-		WizardFlowHarness.answer("No, I want to build a model from scratch");
-		WizardFlowHarness.answer("Train a model");
+		WizardFlowHarness.answer("2D images");
+		WizardFlowHarness.answer("Identify and outline each individual object in the image (instance segmentation)");
+		WizardFlowHarness.answer("No");
+		WizardFlowHarness.answer("Train a new AI model using my images");
 		WizardFlowHarness.path(raw);
 		WizardFlowHarness.path(masks);
+		WizardFlowHarness.answer("No, I want to build a model from scratch");
 		WizardFlowHarness.snap("representation");
 		WizardFlowHarness.click("Go to help");
 		WizardFlowHarness.snap("representation_help");
@@ -45,6 +45,7 @@ public class InstanceFlowHarness {
 		WizardFlowHarness.click(first);
 		WizardFlowHarness.snap("representation_selected");
 		WizardFlowHarness.click("Continue >");
+		WizardFlowHarness.answer("Quick: 2% of the training steps, for a first try");
 		WizardFlowHarness.snap("summary");
 		WizardFlowHarness.click("Create configuration file");
 		WizardFlowHarness.waitIdle();

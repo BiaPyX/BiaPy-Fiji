@@ -179,7 +179,7 @@ def cmd_preview_data(args):
     workflow, shown after a folder is checked. ``raw`` and ``target`` are folders (either may be empty).
     """
     wizard()
-    from biapy.wizard.preview import preview
+    from biapy_compat import preview
 
     step("Preparing the preview of the images . . .")
     return preview(
@@ -272,10 +272,10 @@ def cmd_estimate_resources(args):
     from biapy_compat import build_config
 
     try:
-        _, report = build_config(args["answers"], args.get("gpus"))
+        cfg, report = build_config(args["answers"], args.get("gpus"))
     except WizardError as e:
         return {"resources": None, "error_message": str(e)}
-    return {"resources": to_jsonable(report.get("resources"))}
+    return {"resources": to_jsonable(report.get("resources")), "config": to_jsonable(cfg)}
 
 
 def cmd_workflow_info(args):

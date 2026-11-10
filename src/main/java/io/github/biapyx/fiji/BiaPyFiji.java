@@ -65,7 +65,7 @@ public final class BiaPyFiji {
 	public static final String URL_PROJECT = "https://biapyx.github.io";
 	public static final String URL_GITHUB = "https://github.com/BiaPyX/BiaPy";
 	public static final String URL_FORUM = "https://forum.image.sc/tag/biapy";
-	public static final String URL_TEMPLATES = "https://github.com/BiaPyX/BiaPy/tree/master/templates";
+	public static final String URL_TEMPLATES = "https://github.com/BiaPyX/BiaPy/tree/master/biapy/config/templates";
 	public static final String URL_DOCS = "https://biapy.readthedocs.io/en/latest/";
 	public static final String URL_NOTEBOOKS = "https://github.com/BiaPyX/BiaPy/tree/master/notebooks";
 	public static final String URL_CITATION = "https://www.nature.com/articles/s41592-025-02699-y";

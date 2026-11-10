@@ -23,10 +23,10 @@ public class ModelFlowHarness {
 		});
 		for (int i = 0; i < 120 && "checking".equals(WizardFlowHarness.p.getEnvState()); i++) Thread.sleep(1000);
 		WizardFlowHarness.click("Start");
+		WizardFlowHarness.answer("2D images");
+		WizardFlowHarness.answer("Identify and outline each individual object in the image (instance segmentation)");
 		WizardFlowHarness.answer("No");
-		WizardFlowHarness.answer("Generate masks for each object in the image");
-		WizardFlowHarness.answer("No");
-		WizardFlowHarness.answer("Test a model");
+		WizardFlowHarness.answer("Use an existing AI model to analyse my images");
 		// Skipping the data through the list of questions: the model question can't be entered
 		toc("Phases");
 		toc("Model source");
@@ -37,7 +37,7 @@ public class ModelFlowHarness {
 		WizardFlowHarness.snap("model_question_refused");
 		toc("Test data (raw)");
 		WizardFlowHarness.path(args[1]);
-		WizardFlowHarness.answer("No");
+		WizardFlowHarness.answer("No: only predict (apply the model)");
 		WizardFlowHarness.click("Continue >"); // Model source, already answered
 		WizardFlowHarness.click("Find models");
 		Thread.sleep(4000);

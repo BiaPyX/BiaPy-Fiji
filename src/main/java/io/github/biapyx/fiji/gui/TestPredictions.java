@@ -42,6 +42,15 @@ public class TestPredictions {
 			{ "full_image_binarized", "Binarized" }, { "per_image_local_max_check", "Detected points" },
 			{ "per_image", "Prediction" }, { "full_image", "Prediction" } };
 
+	/** The most final output folder of the test written in {@code resultsDir} (see OUTPUTS), or null. */
+	static File finalOutput(File resultsDir) {
+		for (String[] out : OUTPUTS) {
+			File dir = new File(resultsDir, out[0]);
+			if (dir.isDirectory()) return dir;
+		}
+		return null;
+	}
+
 	private final File resultsDir;
 	private final File inputDir;
 	/** Predictions of previous runs with the same job name. */

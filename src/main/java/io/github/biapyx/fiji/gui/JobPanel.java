@@ -91,6 +91,8 @@ public class JobPanel extends JPanel {
 	private int testImages = 0;
 	private final int testTotal;
 	private boolean testStarted = false;
+	/** The metrics of the finished job, above the progress (hidden until then). */
+	private final JPanel results = new JPanel(new BorderLayout());
 	/** The last averaged loss and metrics; wraps to the width of the progress column. */
 	private final WrappingTextArea metricsLabel = new WrappingTextArea(" ");
 	private boolean inResults = false;
@@ -290,7 +292,9 @@ public class JobPanel extends JPanel {
 		content.setBorder(BorderFactory.createEmptyBorder(14, 18, 14, 18));
 		// Each block keeps its natural height; otherwise BoxLayout stretches them to fill the tab and the
 		// progress box showed blank bands. The space left goes to the glue at the bottom.
-		for (javax.swing.JComponent comp : new javax.swing.JComponent[] { header, progressBox, tabs }) {
+		results.setOpaque(false);
+		results.setVisible(false);
+		for (javax.swing.JComponent comp : new javax.swing.JComponent[] { header, results, progressBox, tabs }) {
 			JPanel holder = new JPanel(new BorderLayout()) {
 				private static final long serialVersionUID = 1L;
 
@@ -303,7 +307,7 @@ public class JobPanel extends JPanel {
 			holder.add(comp, BorderLayout.CENTER);
 			holder.setAlignmentX(LEFT_ALIGNMENT);
 			content.add(holder);
-			content.add(javax.swing.Box.createVerticalStrut(10));
+			if (comp != results) content.add(javax.swing.Box.createVerticalStrut(10)); // results has its own
 		}
 		content.add(javax.swing.Box.createVerticalGlue());
 		JScrollPane scroll = new JScrollPane(content);
@@ -452,6 +456,7 @@ public class JobPanel extends JPanel {
 			// "And now what?": the button that explains the results lights up until it is clicked
 			docs.setToolTipText("The job finished: see what it created and how to look at its results");
 			docs.startGlow();
+			showResults();
 			if (test && testTotal <= 0) {
 				testBar.setIndeterminate(false);
 				testBar.setMaximum(Math.max(1, testImages));
@@ -482,6 +487,98 @@ public class JobPanel extends JPanel {
 			for (String l : resultLines) res.add(l);
 			r.add("results", res);
 		});
+	}
+
+	/**
+	 * The training metrics of the epoch kept and the test metrics (when the test images have ground truth), read from
+	 * the files of this run.
+	 */
+	private void showResults() {
+		File log = train ? monitor.getTrainingLog() : null;
+		String trainHtml = log != null && log.isFile() ? ResultsBox.trainingHtml(ResultsBox.training(log)) : null;
+		File resultsDir = new File(new File(jobFolder, "results"), jobName + "_" + RUN_ID);
+		File csv = new File(resultsDir, "test_results_metrics.csv");
+		// A previous run of the job may have left one
+		boolean fresh = test && csv.isFile() && csv.lastModified() >= startTime;
+		String testHtml = fresh ? ResultsBox.testHtml(ResultsBox.test(csv), testImages) : null;
+		File predictions = test ? predictionsOf(resultsDir) : null;
+		if (trainHtml == null && testHtml == null && predictions == null) return;
+		JPanel body = new JPanel();
+		body.setOpaque(false);
+		body.setLayout(new javax.swing.BoxLayout(body, javax.swing.BoxLayout.Y_AXIS));
+		if (trainHtml != null || testHtml != null) {
+			javax.swing.JTabbedPane metrics = new javax.swing.JTabbedPane();
+			metrics.setFont(metrics.getFont().deriveFont(Font.PLAIN, 12f));
+			if (trainHtml != null) metrics.addTab("Training / validation", metricsTab(trainHtml));
+			if (testHtml != null) metrics.addTab("Test", metricsTab(testHtml));
+			metrics.setAlignmentX(LEFT_ALIGNMENT);
+			body.add(metrics);
+		}
+		if (predictions != null) {
+			JButton open = UiUtils.secondaryButton(predictionsLabel(), "Open " + predictions);
+			open.addActionListener(e -> UiUtils.openFolder(predictions));
+			JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+			row.setOpaque(false);
+			row.add(open);
+			row.setAlignmentX(LEFT_ALIGNMENT);
+			body.add(javax.swing.Box.createVerticalStrut(8));
+			body.add(row);
+		}
+		JLabel next = new JLabel("<html>Click <b>Workflow info</b> (above) to understand the results: what each folder "
+				+ "holds, how to look at them in Fiji and the next steps.</html>");
+		next.setFont(next.getFont().deriveFont(Font.PLAIN, 12f));
+		next.setForeground(BiaPyFiji.GREY);
+		next.setAlignmentX(LEFT_ALIGNMENT);
+		body.add(javax.swing.Box.createVerticalStrut(6));
+		body.add(next);
+		JLabel title = new JLabel("Results");
+		title.setFont(title.getFont().deriveFont(Font.BOLD, 13f));
+		title.setForeground(BiaPyFiji.GREEN);
+		JPanel box = new JPanel(new BorderLayout(0, 4));
+		box.setOpaque(false);
+		box.add(title, BorderLayout.NORTH);
+		box.add(body, BorderLayout.CENTER);
+		box.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(BiaPyFiji.GREEN, 2, true),
+				BorderFactory.createEmptyBorder(8, 10, 8, 10)));
+		results.removeAll();
+		results.add(box, BorderLayout.CENTER);
+		results.setBorder(BorderFactory.createEmptyBorder(0, 0, 10, 0));
+		results.setVisible(true);
+	}
+
+	private static JPanel metricsTab(String html) {
+		JLabel l = new JLabel("<html>" + html + "</html>");
+		l.setFont(l.getFont().deriveFont(Font.PLAIN, 12f));
+		JPanel p = new JPanel(new BorderLayout());
+		p.setBackground(BiaPyFiji.WHITE);
+		p.setBorder(BorderFactory.createEmptyBorder(6, 8, 6, 8));
+		p.add(l, BorderLayout.NORTH);
+		return p;
+	}
+
+	/** The final output of the test: tracks, the predictions table (classification) or the most final image folder. */
+	private File predictionsOf(File resultsDir) {
+		File tracks = new File(resultsDir, "tracking");
+		if (Boolean.TRUE.equals(get(cfg, "PROBLEM", "TRACKING", "ENABLE")) && tracks.isDirectory()) return tracks;
+		if ("CLASSIFICATION".equals(type())) return resultsDir.isDirectory() ? resultsDir : null;
+		return TestPredictions.finalOutput(resultsDir);
+	}
+
+	private String predictionsLabel() {
+		if (Boolean.TRUE.equals(get(cfg, "PROBLEM", "TRACKING", "ENABLE"))) return "Tracked objects";
+		switch (type()) {
+		case "SEMANTIC_SEG": return "Predicted masks";
+		case "INSTANCE_SEG": return "Predicted instances";
+		case "DETECTION": return "Detected points";
+		case "DENOISING": return "Denoised images";
+		case "SUPER_RESOLUTION": return "High-resolution images";
+		case "CLASSIFICATION": return "Predicted classes";
+		default: return "Predicted images";
+		}
+	}
+
+	private String type() {
+		return str(get(cfg, "PROBLEM", "TYPE"), "SEMANTIC_SEG");
 	}
 
 	/** What the History page shows of this run (updated when it ends). */

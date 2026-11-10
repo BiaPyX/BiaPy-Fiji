@@ -63,8 +63,19 @@ Exception: `RunPanel.mpsConfig` (Java) patches the config for Apple GPUs ("--gpu
 ## Wizard decisions
 
 - Question order: Problem description (dimensions, workflow, tracking), then Data (phases, clean targets, data
-  folders), then Model (model source, checkpoint, zoo model, instance representation, training length). The data is
-  checked before the model is chosen.
+  folders, voxel size), then Model (model source, checkpoint, zoo model, instance representation, point size,
+  training length). The data is checked before the model is chosen.
+- Voxel size (type `voxel_size`, answer `voxel_size <folder key>` = [z, y, x]): asked after a raw folder whose 3D
+  images have no calibration (`n_calibrated` 0; `WizardModel.dataFacts` "UNCALIBRATED <key>", read by the conditions
+  but not sent). Training images when the job trains; test images only for test-only detection with ground truth (the
+  only case where BiaPy uses their spacing). Empty fields = unknown. 2D is not asked: only the Z/XY ratio is used.
+- Point size (detection, training; type `point_size`): `detection_point_radius` / `detection_point_radius_z`, "auto" or
+  a number (Z empty = "auto"). The core puts these answers into the fingerprints
+  (`biapy.wizard.common.answers_into_fingerprints`). "Show the points" draws the radius on full-resolution crops of the
+  training data (`points_crop` of the core preview, added by `biapy_compat.preview` on older releases; drawn by
+  `PointsPreview` as BiaPy paints them) with the radius the plan gives (`estimate_resources` returns the config).
+- Changing the model source, workflow or dimensions forgets the zoo model and its `model_restrictions`.
+- Answers longer than the answer area wrap (`WizardPanel.wrapIfLong`); keep details in the question text or help.
 - The zoo search gets `nchannels` (`WizardModel.dataChannels`, see below) and lists only models for that number of
   channels. Cellpose zoo models come in 1- and 3-channel versions.
 - The zoo model question shows "Model selected:" (text, not editable), a centered "Find models" button, and the list of
@@ -109,7 +120,12 @@ Use the scratchpad for everything. Environment details are in the auto-memory (`
 - `ModelFlowHarness <shots dir> <folder with single-channel 2D test images>`: zoo model question (real zoo search,
   a few minutes), search "DINO cellpose", selection, and summary.
 - `WizardChannelsCheck` (no Python): channels from the training images, test images un-checked when they no longer
-  match, zoo model reset when the data changes.
+  match, zoo model reset when the data or the model source changes.
+- `DetectionFlowHarness <shots dir> <3D TIFs without calibration> <CSV points> <yaml dir>`: voxel size and point
+  size questions (with "Show the points"), and the configuration they give.
+- `InstanceFlowHarness <shots dir> <raw 2D images> <instance masks> <yaml dir>`: instance representation question.
+- `gui.PointsPreviewCheck` (no Python): point size answers and the targets drawn.
+- `gui.ResultsBoxCheck` (no Python): metrics of the results box (training log and `test_results_metrics.csv`).
 
 ## Build (after every requested change)
 

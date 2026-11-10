@@ -39,6 +39,7 @@ import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
@@ -376,6 +377,10 @@ public class WizardPanel extends JPanel {
 	 * checked.
 	 */
 	private boolean dataCheckedOrWarn() {
+		if (answerError != null) {
+			UiUtils.info(this, answerError);
+			return false;
+		}
 		Question q = model.getQuestion(model.getCurrent());
 		if (q.type != Type.PATH || model.isDataChecked(q)) return true;
 		UiUtils.info(this, "Please select the folder and click 'Check data' before continuing: the data must be checked.");
@@ -402,8 +407,17 @@ public class WizardPanel extends JPanel {
 
 	/** The widget holding the answer of the question being shown (to read text fields when moving away). */
 	private JTextField currentTextField;
+	/** The Z, Y and X fields of the VOXEL_SIZE question shown, and why what they hold is not valid (or null). */
+	/** Stores the answer typed in the current question's fields (voxel or point size); returns its problem, or null. */
+	private java.util.function.Supplier<String> typedAnswer;
+	private String answerError;
 
 	private void readCurrentAnswer() {
+		answerError = null;
+		if (typedAnswer != null) {
+			answerError = typedAnswer.get();
+			rebuildToc();
+		}
 		if (currentTextField == null) return;
 		Question q = model.getQuestion(model.getCurrent());
 		if (q.type == Type.PATH) model.setPath(q.index, currentTextField.getText());
@@ -428,6 +442,7 @@ public class WizardPanel extends JPanel {
 
 		answerArea.removeAll();
 		currentTextField = null;
+		typedAnswer = null;
 		switch (q.type) {
 		case CHOICE:
 			answerArea.add(buildChoice(q), BorderLayout.NORTH);
@@ -437,6 +452,12 @@ public class WizardPanel extends JPanel {
 			break;
 		case REPRESENTATION:
 			answerArea.add(buildRepresentation(q), BorderLayout.CENTER);
+			break;
+		case VOXEL_SIZE:
+			answerArea.add(buildVoxelSize(q), BorderLayout.NORTH);
+			break;
+		case POINT_SIZE:
+			answerArea.add(buildPointSize(q), BorderLayout.NORTH);
 			break;
 		default:
 			answerArea.add(buildModel(q), BorderLayout.CENTER);
@@ -456,6 +477,7 @@ public class WizardPanel extends JPanel {
 			JRadioButton rb = new JRadioButton(q.answers.get(a));
 			rb.setOpaque(false);
 			rb.setFont(rb.getFont().deriveFont(14f));
+			wrapIfLong(rb);
 			rb.setSelected(Integer.valueOf(a).equals(sel));
 			final int ans = a;
 			rb.addActionListener(e -> {
@@ -467,6 +489,258 @@ public class WizardPanel extends JPanel {
 			p.add(Box.createVerticalStrut(4));
 		}
 		return p;
+	}
+
+	/** Answers longer than the answer area wrap (radio buttons keep their text in one line otherwise). */
+	private void wrapIfLong(javax.swing.AbstractButton b) {
+		int width = answerArea.getWidth() > 0 ? answerArea.getWidth() - 10 : 520;
+		if (b.getPreferredSize().width <= width) return;
+		int circle = b.getPreferredSize().width - b.getFontMetrics(b.getFont()).stringWidth(b.getText());
+		b.setText("<html>" + escape(b.getText()) + "</html>");
+		// As wrappedLabel: the height of the text laid out at that width (a CSS width would be scaled by Swing)
+		javax.swing.text.View view = (javax.swing.text.View) b.getClientProperty(javax.swing.plaf.basic.BasicHTML.propertyKey);
+		if (view == null) return;
+		view.setSize(width - circle, 0);
+		java.awt.Insets in = b.getInsets();
+		b.setPreferredSize(new Dimension(width, (int) Math.ceil(view.getPreferredSpan(javax.swing.text.View.Y_AXIS)) + in.top + in.bottom));
+	}
+
+	/** Voxel size of the images: Z, Y and X fields, in µm; all empty if the user doesn't know it. */
+	private JPanel buildVoxelSize(Question q) {
+		JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+		p.setOpaque(false);
+		double[] given = model.voxelSize(q.index);
+		String[] axes = { "Z", "Y", "X" };
+		JTextField[] voxelFields = new JTextField[3];
+		for (int i = 0; i < 3; i++) {
+			JLabel l = new JLabel(axes[i] + ":");
+			l.setFont(l.getFont().deriveFont(Font.BOLD, 14f));
+			p.add(l);
+			voxelFields[i] = new JTextField(given == null ? "" : String.valueOf(given[i]), 6);
+			voxelFields[i].setToolTipText("Size of a voxel along " + axes[i] + ", in \u00b5m (e.g. 0.5)");
+			p.add(voxelFields[i]);
+			p.add(Box.createHorizontalStrut(10));
+		}
+		p.add(new JLabel("\u00b5m"));
+		JPanel box = new JPanel(new BorderLayout(0, 8));
+		box.setOpaque(false);
+		box.add(p, BorderLayout.NORTH);
+		typedAnswer = () -> {
+			String[] texts = new String[voxelFields.length];
+			for (int i = 0; i < texts.length; i++) texts[i] = voxelFields[i].getText();
+			return model.setVoxelSize(q.index, texts);
+		};
+		box.add(wrappingText("Leave the three fields empty if you don't know it: the images are then taken as if their "
+				+ "voxels were cubes, or the voxel size is estimated from the shape of the objects in the masks, if there are any.",
+				Font.PLAIN, BiaPyFiji.GREY), BorderLayout.CENTER);
+		return box;
+	}
+
+	/**
+	 * Radius of the detection points: automatic or typed (step 1), and the training targets it gives drawn on crops of
+	 * the training images (step 2, optional).
+	 */
+	private JPanel buildPointSize(Question q) {
+		boolean is3d = "3D".equals(model.getAnswer("PROBLEM.NDIM").getAsString());
+		Integer[] given = model.pointSize(q.index);
+		JPanel p = new JPanel();
+		p.setOpaque(false);
+		p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
+		p.add(stepLabel("Step 1: choose the radius"));
+		p.add(Box.createVerticalStrut(4));
+		JRadioButton auto = new JRadioButton("Automatic (recommended)"), manual = new JRadioButton("Manual:");
+		JTextField xy = new JTextField(given[0] == null ? "" : given[0].toString(), 4);
+		JTextField z = new JTextField(given[1] == null ? "" : given[1].toString(), 4);
+		xy.setToolTipText("Radius of the points in X and Y, in pixels (e.g. 3)");
+		z.setToolTipText("Radius of the points along Z, in slices; empty: the XY radius scaled by the voxel size");
+		ButtonGroup g = new ButtonGroup();
+		Runnable enable = () -> {
+			xy.setEnabled(manual.isSelected());
+			z.setEnabled(manual.isSelected());
+		};
+		for (JRadioButton rb : new JRadioButton[] { auto, manual }) {
+			rb.setOpaque(false);
+			rb.setFont(rb.getFont().deriveFont(14f));
+			rb.addActionListener(e -> enable.run());
+			g.add(rb);
+		}
+		(given[0] != null ? manual : auto).setSelected(true);
+		enable.run();
+		JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+		row.setOpaque(false);
+		row.add(manual);
+		row.add(xy);
+		row.add(new JLabel("pixels"));
+		if (is3d) {
+			row.add(Box.createHorizontalStrut(10));
+			row.add(new JLabel("along Z:"));
+			row.add(z);
+			row.add(new JLabel("slices"));
+		}
+		p.add(auto);
+		p.add(row);
+		p.add(Box.createVerticalStrut(4));
+		p.add(wrappingText("Automatic: a quarter of the distance between the closest points of your annotations, from 1 to 5 "
+				+ "pixels." + (is3d ? " Along Z, leave it empty to scale the radius with the voxel size." : ""),
+				Font.PLAIN, BiaPyFiji.GREY));
+		p.add(Box.createVerticalStrut(14));
+		p.add(stepLabel("Step 2: visualize (optional)"));
+		p.add(Box.createVerticalStrut(4));
+		JButton show = UiUtils.secondaryButton("Show the points",
+				"Draw the points of some training images with this radius, as the model will learn them");
+		p.add(show);
+		JPanel samples = new JPanel();
+		samples.setOpaque(false);
+		samples.setLayout(new BoxLayout(samples, BoxLayout.Y_AXIS));
+		p.add(samples);
+		for (Component c : p.getComponents()) ((javax.swing.JComponent) c).setAlignmentX(Component.LEFT_ALIGNMENT);
+		typedAnswer = () -> model.setPointSize(q.index, manual.isSelected(), xy.getText(), is3d ? z.getText() : "");
+		show.addActionListener(e -> showPointTargets(samples));
+		// The tiles follow the width of the page
+		samples.addComponentListener(new java.awt.event.ComponentAdapter() {
+			@Override
+			public void componentResized(java.awt.event.ComponentEvent e) {
+				if (pointTargets != null && pointTargets.samples == samples && pointTargets.tile != pointTile(samples))
+					fillPointTargets(pointTargets);
+			}
+		});
+		// Drawn before with these answers and data: shown again
+		if (pointTargets != null && pointTargets.key.equals(pointTargetsKey())) {
+			pointTargets.samples = samples;
+			fillPointTargets(pointTargets);
+		}
+		return p;
+	}
+
+	/** Points drawn in the point size question, kept while the answers and the data they show do not change. */
+	private static final class PointTargets {
+		String key;
+		List<JsonObject> crops;
+		int[] radius;
+		boolean is3d;
+		JPanel samples;
+		int tile;
+	}
+
+	private PointTargets pointTargets;
+	/** Largest side of the images drawn, and the space between them. */
+	private static final int POINT_TILE = 180, POINT_GAP = 10;
+
+	/** The training preview and the answers that decide the radius drawn (null without preview). */
+	private String pointTargetsKey() {
+		JsonObject pv = previews.get("TRAIN");
+		if (pv == null) return "";
+		return System.identityHashCode(pv) + " " + model.getAnswer("detection_point_radius") + " "
+				+ model.getAnswer("detection_point_radius_z") + " " + model.getAnswer("voxel_size DATA.TRAIN.PATH");
+	}
+
+	/** Side of the images drawn: two per row in the width of the page, at most POINT_TILE. */
+	private int pointTile(JPanel samples) {
+		int width = samples.getWidth() > 0 ? samples.getWidth() : answerArea.getWidth() > 0 ? answerArea.getWidth() : 2 * POINT_TILE;
+		return Math.max(60, Math.min(POINT_TILE, (width - 3 * POINT_GAP) / 2));
+	}
+
+	/** The radius answered, as BiaPy will apply it, drawn on the crops of the training data's preview. */
+	private void showPointTargets(JPanel samples) {
+		String error = typedAnswer.get();
+		rebuildToc();
+		if (error != null) {
+			UiUtils.info(this, error);
+			return;
+		}
+		String raw = model.checkedFolder("DATA.TRAIN.PATH"), target = model.checkedFolder("DATA.TRAIN.GT_PATH");
+		if (raw == null || target == null) {
+			List<String> missing = new ArrayList<>();
+			for (String key : new String[] { "DATA.TRAIN.PATH", "DATA.TRAIN.GT_PATH" })
+				if (model.checkedFolder(key) == null) missing.add("'" + model.getQuestion(model.questionFor(key)).toc + "'");
+			UiUtils.info(this, "The points are drawn on the training images with their targets (the CSV files with the points), "
+					+ "so both must be checked. Not checked yet: " + String.join(" and ", missing) + ". Click 'Check data' in "
+					+ (missing.size() > 1 ? "those questions" : "that question") + " and come back to this one.");
+			return;
+		}
+		JsonObject pv = previews.get("TRAIN");
+		List<JsonObject> crops = new ArrayList<>();
+		if (pv != null && target.equals(pv.get("target").getAsString()) && raw.equals(pv.get("raw").getAsString()))
+			for (JsonElement e : pv.getAsJsonArray("samples"))
+				if (e.getAsJsonObject().has("points_crop")) crops.add(e.getAsJsonObject());
+		if (crops.isEmpty()) {
+			UiUtils.info(this, pv == null || !target.equals(pv.get("target").getAsString())
+					? "The training images have no preview with their points: check the training targets again ('Check data' "
+							+ "in '" + model.getQuestion(model.questionFor("DATA.TRAIN.GT_PATH")).toc + "') and come back."
+					: "The points can't be drawn on the training images: their preview has no points (e.g. the CSV files are "
+							+ "empty, or the images are large Zarr/H5 files, previewed in part).");
+			return;
+		}
+		JsonObject args = new JsonObject();
+		args.add("answers", model.toJson());
+		String key = pointTargetsKey();
+		// The automatic radius depends on the data and the voxel size: the configuration's plan says which it is
+		runBridge("Planning the targets of the points . . .", "estimate_resources", args, res -> {
+			JsonArray r = null;
+			try {
+				r = res.getAsJsonObject("config").getAsJsonObject("PROBLEM").getAsJsonObject("DETECTION")
+						.getAsJsonArray("CENTRAL_POINT_DILATION");
+			} catch (Exception e) {
+				// not planned: e.g. no points in the annotations
+			}
+			if (r == null) {
+				JsonElement msg = res.get("error_message");
+				UiUtils.error(this, "The radius of the points could not be planned"
+						+ (msg != null && !msg.isJsonNull() ? ": " + msg.getAsString() : "."));
+				return;
+			}
+			int n = r.size();
+			PointTargets t = new PointTargets();
+			t.key = key;
+			t.crops = crops;
+			t.radius = new int[] { n == 3 ? r.get(0).getAsInt() : 0, r.get(n - 2).getAsInt(), r.get(n - 1).getAsInt() };
+			t.is3d = n == 3;
+			t.samples = samples;
+			pointTargets = t;
+			fillPointTargets(t);
+		});
+	}
+
+	private void fillPointTargets(PointTargets t) {
+		JPanel samples = t.samples;
+		t.tile = pointTile(samples);
+		int[] radius = t.radius;
+		samples.removeAll();
+		samples.add(Box.createVerticalStrut(8));
+		samples.add(wrappingText("Radius: " + radius[1] + " pixels" + (t.is3d ? ", " + radius[0] + (radius[0] == 1 ? " slice" : " slices")
+				+ " along Z" : "") + ".", Font.BOLD, BiaPyFiji.BLUE));
+		samples.add(wrappingText("Left: part of a training image at full size (enlarged); right: in red, what the model learns "
+				+ "to predict." + (t.is3d ? " 3D: one slice, through a point; the points of nearby slices show the part of their ball "
+				+ "in it." : ""), Font.PLAIN, BiaPyFiji.GREY));
+		for (JsonObject c : t.crops) {
+			java.awt.image.BufferedImage crop = PointsPreview.decode(c.get("points_crop_png").getAsString());
+			if (crop == null) continue;
+			JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, POINT_GAP, 6));
+			row.setOpaque(false);
+			row.add(pointCell(PointsPreview.enlarge(crop, t.tile), c.get("raw_name").getAsString()));
+			row.add(pointCell(PointsPreview.draw(crop, c.getAsJsonArray("points_crop"), radius, t.tile),
+					c.has("target_name") ? c.get("target_name").getAsString() : ""));
+			samples.add(row);
+		}
+		for (Component c : samples.getComponents()) ((javax.swing.JComponent) c).setAlignmentX(Component.LEFT_ALIGNMENT);
+		samples.revalidate();
+		samples.repaint();
+	}
+
+	/** An image with its file name below, as in the data preview. */
+	private static JPanel pointCell(java.awt.image.BufferedImage img, String name) {
+		JPanel cell = new JPanel(new BorderLayout(0, 3));
+		cell.setOpaque(false);
+		JLabel pic = new JLabel(new ImageIcon(img));
+		pic.setBorder(BorderFactory.createLineBorder(BiaPyFiji.LIGHT_BLUE));
+		cell.add(pic, BorderLayout.CENTER);
+		JLabel caption = new JLabel(name.length() > 28 ? "..." + name.substring(name.length() - 25) : name);
+		caption.setToolTipText(name);
+		caption.setFont(caption.getFont().deriveFont(Font.PLAIN, 11f));
+		caption.setForeground(BiaPyFiji.GREY);
+		caption.setHorizontalAlignment(SwingConstants.CENTER);
+		cell.add(caption, BorderLayout.SOUTH);
+		return cell;
 	}
 
 	/** Scrolls the page so that the Wizard help is at its top. */
@@ -693,6 +967,11 @@ public class WizardPanel extends JPanel {
 		c.insets = new Insets(4, 0, 4, 6);
 		c.gridx = 0;
 		c.gridy = 0;
+		c.gridwidth = 2;
+		c.anchor = GridBagConstraints.WEST;
+		p.add(stepLabel("Step 1: choose the folder"), c);
+		c.gridwidth = 1;
+		c.gridy = 1;
 		c.weightx = 1;
 		c.fill = GridBagConstraints.HORIZONTAL;
 		JTextField field = new JTextField(model.getAnswered(q.index) == null ? "" : model.getAnswered(q.index).toString());
@@ -703,27 +982,31 @@ public class WizardPanel extends JPanel {
 		c.gridx = 1;
 		JButton browse = UiUtils.secondaryButton("Browse", "Choose the folder with the images");
 		p.add(browse, c);
+		c.gridx = 0;
+		c.gridy = 2;
+		c.gridwidth = 2;
+		c.insets = new Insets(14, 0, 0, 6);
+		p.add(stepLabel("Step 2: check the data"), c);
 		JButton check = UiUtils.primaryButton("Check data",
 				"Read the images of the folder to check them and see examples; their sizes and values guide the configuration");
 		BeaconFrame checkFrame = new BeaconFrame(check);
-		c.gridx = 0;
-		c.gridy = 1;
-		c.gridwidth = 2;
-		c.anchor = GridBagConstraints.CENTER;
-		c.insets = new Insets(3, 0, 0, 0); // the frame's halo takes the rest of the space
-		p.add(checkFrame, c);
 		// Plain text: an HTML label would keep the width of its previous text and wrap the new one
 		JLabel status = new JLabel();
 		status.setFont(status.getFont().deriveFont(Font.BOLD));
-		c.gridy = 2;
-		c.insets = new Insets(2, 0, 4, 0);
-		p.add(status, c);
+		JPanel checkRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+		checkRow.setOpaque(false);
+		checkRow.add(checkFrame);
+		checkRow.add(Box.createHorizontalStrut(8));
+		checkRow.add(status);
+		c.gridy = 3;
+		c.insets = new Insets(3, 0, 4, 0); // the frame's halo takes the rest of the space
+		p.add(checkRow, c);
 		String key = q.firstKey();
 		String phase = key.contains("TRAIN") ? "TRAIN" : "TEST";
 		Runnable refresh = () -> {
 			boolean ok = model.isDataChecked(q) && field.getText().trim().equals(model.getAnswered(q.index));
 			String labels = key.contains("GT_PATH") ? model.targetDataPath(phase) : "";
-			status.setText(!ok ? "\u2191 Data not checked yet!"
+			status.setText(!ok ? "\u2190 Data not checked yet!"
 					: labels.isEmpty() ? "Data checked!" : "Data checked! (targets: '" + labels + "' of the OME-Zarr images)");
 			status.setForeground(ok ? BiaPyFiji.GREEN : BiaPyFiji.RED);
 			// A folder is set but not checked: the button glows until it is
@@ -747,7 +1030,7 @@ public class WizardPanel extends JPanel {
 		String raw = model.checkedFolder(rawKey);
 		List<String> labels = key.contains("GT_PATH") ? model.omeZarrLabels(rawKey) : new ArrayList<>();
 		if (raw != null && !labels.isEmpty()) {
-			c.gridy = 3;
+			c.gridy = 5;
 			c.insets = new Insets(10, 0, 2, 0);
 			p.add(new JLabel("Or use as targets a label image stored in the raw OME-Zarr images:"), c);
 			JPanel row = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 0));
@@ -763,11 +1046,18 @@ public class WizardPanel extends JPanel {
 				checkData(q, raw, refresh, "labels." + names.getSelectedItem());
 			});
 			row.add(use);
-			c.gridy = 4;
+			c.gridy = 6;
 			c.insets = new Insets(2, 0, 4, 0);
 			p.add(row, c);
 		}
 		return p;
+	}
+
+	private static JLabel stepLabel(String text) {
+		JLabel l = new JLabel(text);
+		l.setFont(l.getFont().deriveFont(Font.BOLD, 13f));
+		l.setForeground(BiaPyFiji.BLUE);
+		return l;
 	}
 
 	private JPanel buildModel(Question q) {

@@ -20,7 +20,7 @@ import com.google.gson.JsonPrimitive;
  */
 public class WizardModel {
 
-	public enum Type { CHOICE, PATH, MODEL_BIAPY, MODEL_OTHERS, REPRESENTATION }
+	public enum Type { CHOICE, PATH, MODEL_BIAPY, MODEL_OTHERS, REPRESENTATION, VOXEL_SIZE, POINT_SIZE }
 
 	/** One question of the questionnaire. */
 	public static class Question {
@@ -95,6 +95,12 @@ public class WizardModel {
 	private int current = 0;
 	/** Channels of the raw images checked, per variable ("DATA.TRAIN.PATH", "DATA.TEST.PATH"). */
 	private final Map<String, Integer> rawChannels = new java.util.HashMap<>();
+	/**
+	 * What the data checks found that questions depend on, e.g. "UNCALIBRATED DATA.TRAIN.PATH": true. Read by the
+	 * conditions like the answers, but not sent to BiaPy.
+	 */
+	private final JsonObject dataFacts = new JsonObject();
+	private static final String VOXEL_SIZE = "voxel_size ";
 
 	public WizardModel() {
 		JsonObject root;
@@ -121,6 +127,7 @@ public class WizardModel {
 	public void clear() {
 		answers = originalAnswers.deepCopy();
 		rawChannels.clear();
+		for (String k : new ArrayList<>(dataFacts.keySet())) dataFacts.remove(k);
 		answered = new Object[questions.size()];
 		visible = defaultVisible.clone();
 		current = 0;
@@ -183,13 +190,8 @@ public class WizardModel {
 		for (Map.Entry<String, JsonElement> e : q.map.entrySet())
 			answers.add(e.getKey(), e.getValue().getAsJsonArray().get(answerIndex));
 
-		// Data checks and model choices depend on the dimensionality and workflow
 		String key = q.firstKey();
-		if (changed && (key.equals("PROBLEM.NDIM") || key.equals("PROBLEM.TYPE"))) {
-			for (String k : answers.keySet()) if (k.startsWith("CHECKED ")) answers.add(k, UNSET);
-			for (Question o : questions)
-				if (o.type == Type.MODEL_BIAPY || o.type == Type.MODEL_OTHERS) answered[o.index] = null;
-		}
+		if (changed) forgetDependentAnswers(key);
 		// The test images of a tracking job are checked as the frames of a time-lapse
 		if (changed && key.equals(TRACKING)) answers.add("CHECKED DATA.TEST.PATH", UNSET);
 		updateVisibility();
@@ -209,13 +211,19 @@ public class WizardModel {
 		boolean changed = answered[qi] != null;
 		answered[qi] = null;
 		for (String key : q.map.keySet()) answers.add(key, UNSET);
-		String key = q.firstKey();
-		if (changed && (key.equals("PROBLEM.NDIM") || key.equals("PROBLEM.TYPE"))) {
-			for (String k : answers.keySet()) if (k.startsWith("CHECKED ")) answers.add(k, UNSET);
-			for (Question o : questions)
-				if (o.type == Type.MODEL_BIAPY || o.type == Type.MODEL_OTHERS) answered[o.index] = null;
-		}
+		if (changed) forgetDependentAnswers(q.firstKey());
 		updateVisibility();
+	}
+
+	/** Data checks and model choices depend on the dimensionality and workflow; the zoo model on the model source. */
+	private void forgetDependentAnswers(String key) {
+		if (key.equals("PROBLEM.NDIM") || key.equals("PROBLEM.TYPE")) {
+			for (String k : answers.keySet()) if (k.startsWith("CHECKED ")) answers.add(k, UNSET);
+			for (Question o : questions) if (o.type == Type.MODEL_BIAPY) answered[o.index] = null;
+			resetZooModel();
+		} else if (key.equals("MODEL.SOURCE")) {
+			resetZooModel();
+		}
 	}
 
 	/** Index of the question that sets the given variable (e.g. "PROBLEM.TYPE"), or -1. */
@@ -249,6 +257,95 @@ public class WizardModel {
 	}
 
 	/**
+	 * Voxel size (z, y, x) of the images of a VOXEL_SIZE question, typed by the user: three positive numbers, or all
+	 * empty if they don't know it.
+	 *
+	 * @return why it is not valid, or null if it was stored
+	 */
+	public String setVoxelSize(int qi, String[] texts) {
+		Question q = questions.get(qi);
+		boolean empty = true;
+		for (String t : texts) empty &= t.trim().isEmpty();
+		if (empty) {
+			answers.add(q.firstKey(), UNSET);
+			answered[qi] = "Unknown";
+			return null;
+		}
+		JsonArray size = new JsonArray();
+		for (String t : texts) {
+			double v;
+			try {
+				v = Double.parseDouble(t.trim().replace(',', '.'));
+			} catch (NumberFormatException e) {
+				v = -1;
+			}
+			if (!(v > 0) || Double.isInfinite(v))
+				return "Please type the voxel size as three positive numbers (Z, Y and X), or leave all of them empty if you don't know it.";
+			size.add(v);
+		}
+		answers.add(q.firstKey(), size);
+		answered[qi] = "Z " + size.get(0) + ", Y " + size.get(1) + ", X " + size.get(2) + " (\u00b5m)";
+		return null;
+	}
+
+	/**
+	 * Radius of the detection points of a POINT_SIZE question (its keys: XY radius, then Z radius): "auto", or the
+	 * pixels typed in XY and the slices in Z (empty: "auto", the XY radius scaled by the voxel size). Returns the
+	 * problem to show to the user, or null.
+	 */
+	public String setPointSize(int qi, boolean manual, String xy, String z) {
+		Question q = questions.get(qi);
+		java.util.Iterator<String> keys = q.map.keySet().iterator();
+		JsonElement rxy = new JsonPrimitive("auto"), rz = new JsonPrimitive("auto");
+		String text = "Automatic";
+		if (manual) {
+			Integer vxy = radius(xy), vz = radius(z);
+			if (vxy == null || (vz == null && !z.trim().isEmpty()))
+				return "Please type the radius of the points as a whole number of pixels (e.g. 3), or choose 'Automatic'.";
+			rxy = new JsonPrimitive(vxy);
+			text = vxy + " px";
+			if (vz != null) {
+				rz = new JsonPrimitive(vz);
+				text += ", Z " + vz + (vz == 1 ? " slice" : " slices");
+			}
+		}
+		answers.add(keys.next(), rxy);
+		answers.add(keys.next(), rz);
+		answered[qi] = text;
+		return null;
+	}
+
+	private static Integer radius(String text) {
+		try {
+			int v = Integer.parseInt(text.trim());
+			return v >= 0 ? v : null;
+		} catch (NumberFormatException e) {
+			return null;
+		}
+	}
+
+	/** The XY and Z radii answered in a POINT_SIZE question: a number of pixels, or null if automatic or unanswered. */
+	public Integer[] pointSize(int qi) {
+		Integer[] out = new Integer[2];
+		int i = 0;
+		for (String key : questions.get(qi).map.keySet()) {
+			JsonElement e = answers.get(key);
+			boolean px = e != null && e.isJsonPrimitive() && e.getAsJsonPrimitive().isNumber() && e.getAsInt() >= 0;
+			out[i++] = px ? e.getAsInt() : null;
+		}
+		return out;
+	}
+
+	/** Voxel size answered in a VOXEL_SIZE question as the three numbers typed, or null. */
+	public double[] voxelSize(int qi) {
+		JsonElement e = answers.get(questions.get(qi).firstKey());
+		if (e == null || !e.isJsonArray()) return null;
+		double[] v = new double[3];
+		for (int i = 0; i < 3; i++) v[i] = e.getAsJsonArray().get(i).getAsDouble();
+		return v;
+	}
+
+	/**
 	 * Channels the model must take: the training images' when the job trains and they are checked (the test images
 	 * have to be converted to them), otherwise the test images'; null if none is checked.
 	 */
@@ -268,14 +365,18 @@ public class WizardModel {
 		return qi >= 0 && visible[qi] && isDataChecked(questions.get(qi)) ? rawChannels.get(key) : null;
 	}
 
-	/** Forgets the Model Zoo model chosen, which was listed for data that changed. */
+	/**
+	 * Forgets the Model Zoo model chosen (listed for data or answers that changed), with the settings it imposed: left
+	 * behind, they would still be applied to a model trained from scratch or loaded from a checkpoint.
+	 */
 	private void resetZooModel() {
 		for (Question o : questions) {
-			if (o.type != Type.MODEL_OTHERS || answered[o.index] == null) continue;
+			if (o.type != Type.MODEL_OTHERS) continue;
 			answered[o.index] = null;
 			for (String key : o.map.keySet()) answers.add(key, UNSET);
-			answers.remove("model_restrictions");
 		}
+		answers.remove("model_restrictions");
+		answers.remove("MODEL.TORCHVISION_MODEL_NAME");
 	}
 
 	/** Model picked from the list of compatible BioImage Model Zoo / Torchvision models. */
@@ -307,6 +408,16 @@ public class WizardModel {
 			rawChannels.put(q.firstKey(), dataConstraints.get("DATA.PATCH_SIZE_C").getAsInt());
 		answers.add("data_constraints", dc);
 		answers.addProperty("CHECKED " + q.firstKey(), 1);
+		// Images without voxel size in their metadata: the user is asked for it (again, for the new data)
+		JsonElement fpe = sampleInfo.get("fingerprint");
+		JsonObject fp = fpe != null && fpe.isJsonObject() ? fpe.getAsJsonObject() : null;
+		if (fp != null && fp.has("n_calibrated"))
+			dataFacts.addProperty("UNCALIBRATED " + q.firstKey(), fp.get("n_calibrated").getAsInt() == 0);
+		int vq = questionFor(VOXEL_SIZE + q.firstKey());
+		if (vq >= 0) {
+			answered[vq] = null;
+			answers.add(VOXEL_SIZE + q.firstKey(), UNSET);
+		}
 		// The test images must have the training images' channels: they are checked again against new ones
 		Integer test = checkedChannels("DATA.TEST.PATH");
 		boolean testUnchecked = q.firstKey().equals("DATA.TRAIN.PATH") && test != null
@@ -489,7 +600,7 @@ public class WizardModel {
 		boolean setDefault = true;
 		for (JsonElement ce : condition.getAsJsonArray("and_cond")) {
 			JsonArray c = ce.getAsJsonArray();
-			JsonElement a = answers.get(c.get(0).getAsString());
+			JsonElement a = value(c.get(0).getAsString());
 			if (a != null && !a.equals(UNSET)) {
 				setDefault = false;
 				if (!a.equals(c.get(1))) {
@@ -504,7 +615,7 @@ public class WizardModel {
 		if (makeVisible) {
 			for (JsonElement ce : condition.getAsJsonArray("or_cond")) {
 				JsonArray c = ce.getAsJsonArray();
-				JsonElement a = answers.get(c.get(0).getAsString());
+				JsonElement a = value(c.get(0).getAsString());
 				if (a != null && !a.equals(UNSET)) {
 					setDefault = false;
 					if (!c.get(1).getAsJsonArray().contains(a)) {
@@ -518,6 +629,11 @@ public class WizardModel {
 			}
 		}
 		return setDefault ? null : makeVisible;
+	}
+
+	/** An answer or, if there is none with that name, what the data checks found (see dataFacts). */
+	private JsonElement value(String key) {
+		return answers.has(key) ? answers.get(key) : dataFacts.get(key);
 	}
 
 	/** Index of the next visible question, or {@code size()} when the summary must be shown. */
