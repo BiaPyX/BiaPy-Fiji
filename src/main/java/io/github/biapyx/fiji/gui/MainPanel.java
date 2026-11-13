@@ -9,7 +9,6 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,14 +20,10 @@ import javax.swing.BoxLayout;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
-import javax.swing.SwingUtilities;
 
 import com.google.gson.JsonObject;
 
-import ij.IJ;
 import io.github.biapyx.fiji.BiaPyFiji;
-import io.github.biapyx.fiji.env.PythonBridge;
-import io.github.biapyx.fiji.env.PythonEnv;
 
 /**
  * Content of the single BiaPy window. Like BiaPy-GUI it has the logo and version in the top-left corner,
@@ -53,12 +48,10 @@ public class MainPanel extends JPanel {
 	private final RunPanel runPanel;
 	private final HistoryPanel historyPanel;
 
-	private volatile JsonObject envInfo;
-	private final List<Consumer<JsonObject>> envListeners = new ArrayList<>();
 
 	public MainPanel() {
 		super(new BorderLayout());
-		homePanel = new HomePanel(this);
+		homePanel = new HomePanel(this::showPage);
 		wizardPanel = new WizardPanel(this);
 		runPanel = new RunPanel(this);
 		content.add(homePanel, HOME);
@@ -311,12 +304,12 @@ public class MainPanel extends JPanel {
 
 	/** Information about the Python environment (BiaPy/torch versions and GPUs), or null if unknown. */
 	public JsonObject getEnvInfo() {
-		return envInfo;
+		return EnvMonitor.info();
 	}
 
 	/** BiaPy version of the environment in use (the one runs use), or "?" if unknown. */
 	public String biapyVersion() {
-		JsonObject info = envInfo;
+		JsonObject info = EnvMonitor.info();
 		return info != null && info.has("biapy_version") && !info.get("biapy_version").isJsonNull()
 				? info.get("biapy_version").getAsString() : "?";
 	}
@@ -330,82 +323,16 @@ public class MainPanel extends JPanel {
 	}
 
 	public void addEnvListener(Consumer<JsonObject> l) {
-		envListeners.add(l);
+		EnvMonitor.addListener(l);
 	}
 
-	/** Queries the Python environment in the background and notifies the listeners (null = not available). */
+	/** See {@link EnvMonitor#refresh()}. */
 	public void refreshEnvInfo() {
-		PythonBridge.shutdown(); // the environment may have changed: the wizard's process starts again
-		envInfo = null;
-		notifyEnv(null, "checking");
-		final int check = ++envCheck;
-		new Thread(() -> {
-			if (!PythonEnv.pythonExists()) {
-				publishEnv(check, null, "missing");
-				return;
-			}
-			// 1) Quick: package versions and GPUs without importing anything heavy (~0.2 s)
-			JsonObject info;
-			try {
-				info = new PythonBridge().call("env_quick", null, null);
-			} catch (Exception e) {
-				IJ.log("[BiaPy] Could not query the Python environment: " + e.getMessage());
-				publishEnv(check, null, "broken");
-				return;
-			}
-			// The GPUs of the machine, whatever BiaPy version the environment has
-			info.add("gpus", io.github.biapyx.fiji.env.GpuStatus.list());
-			if (info.get("biapy_version") == null || info.get("biapy_version").isJsonNull()) {
-				publishEnv(check, info, "broken");
-				return;
-			}
-			info.addProperty("_verifying", true);
-			publishEnv(check, info, "ok");
-			// Import BiaPy in the background for the wizard, before the user gets to the data questions
-			if (BiaPyFiji.wizardSupported(info)) PythonBridge.warmUp();
-
-			// 2) Background: import PyTorch to confirm it works and can use the GPU (a few seconds)
-			JsonObject verified = info.deepCopy();
-			verified.remove("_verifying");
-			String state = "ok";
-			try {
-				JsonObject v = new PythonBridge().call("env_verify", null, null);
-				for (String k : v.keySet()) verified.add(k, v.get(k));
-				if (v.has("torch_error")) state = "broken";
-				else if (verified.getAsJsonArray("gpus").size() > 0 && !v.get("cuda_available").getAsBoolean())
-					verified.addProperty("gpu_warning", "PyTorch cannot use the GPU (it may be a CPU-only build): "
-							+ "BiaPy would run on CPU. Reinstall BiaPy to get the GPU version.");
-			} catch (Exception e) {
-				verified.addProperty("torch_error", e.getMessage());
-				state = "broken";
-			}
-			publishEnv(check, verified, state);
-		}, "BiaPy-env-check").start();
+		EnvMonitor.refresh();
 	}
-
-	private volatile int envCheck = 0;
-
-	/** Publishes a check result unless a newer check has started meanwhile. */
-	private void publishEnv(int check, JsonObject info, String state) {
-		if (check != envCheck) return;
-		envInfo = "ok".equals(state) ? info : null;
-		SwingUtilities.invokeLater(() -> {
-			if (check == envCheck) notifyEnv(info, state);
-		});
-	}
-
-
-	private volatile String envState = "checking";
 
 	/** Last known state of the Python environment: "checking", "ok", "broken" or "missing". */
 	public String getEnvState() {
-		return envState;
-	}
-
-	private void notifyEnv(JsonObject info, String state) {
-		envState = state;
-		JsonObject payload = info == null ? new JsonObject() : info.deepCopy();
-		payload.addProperty("_state", state);
-		for (Consumer<JsonObject> l : envListeners) l.accept(payload);
+		return EnvMonitor.state();
 	}
 }

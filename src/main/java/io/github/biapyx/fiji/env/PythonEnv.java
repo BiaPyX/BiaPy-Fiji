@@ -82,6 +82,9 @@ public class PythonEnv {
 		Map<String, String> vars = new HashMap<>();
 		vars.put("PYTHONUNBUFFERED", "1");
 		vars.put("PYTHONIOENCODING", "utf-8");
+		// Text files read as UTF-8 also on Windows (its default, cp1252, fails e.g. on the emoji of zoo models'
+		// descriptions, which BiaPy 3.7.3 opens without an encoding)
+		vars.put("PYTHONUTF8", "1");
 		vars.put("PYTHONNOUSERSITE", "1");
 		if (Platform.isWindows()) {
 			String p = String.join(File.pathSeparator, env.getAbsolutePath(),

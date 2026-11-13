@@ -142,12 +142,13 @@ def _points_crop(raw, pts, is_3d, core):
     return {"points_crop_png": core._png(core._intensity_rgb(crop)), "points_crop": rel[keep].tolist()}
 
 
-def list_compatible_bmz_models(nchannels="all", callback=None, **kwargs):
+def list_compatible_bmz_models(nchannels="all", callback=None, cache=None, **kwargs):
     """biapy.models.bmz_search.list_compatible_bmz_models (same arguments and result), with the fixes it needs."""
-    from biapy.models.bmz_search import list_compatible_bmz_models as search
+    from biapy.models import bmz_search
 
+    search = bmz_search.list_compatible_bmz_models
     if not needed(NEXT_RELEASE):
-        return search(nchannels=nchannels, callback=callback, **kwargs)
+        return search(nchannels=nchannels, callback=callback, cache=cache, **kwargs)
 
     # Its package in the zoo is incomplete, so it can't be downloaded
     from biapy.models import BMZ_MODEL_BLACKLIST
@@ -168,7 +169,90 @@ def list_compatible_bmz_models(nchannels="all", callback=None, **kwargs):
         if callback is not None:
             callback(done, total, info, nickname, reason)
 
-    return [m for m in search(callback=checked, **kwargs) if fits(m)]
+    # The checks were not kept between searches (cache): every model was checked each time
+    check, find = bmz_search.check_bmz_model_compatibility, bmz_search.find_bmz_models
+    checks, models = (_CompatibilityCache(cache, check) if cache else None), []
+
+    def find_models():
+        models.extend(find())
+        return models
+
+    if checks is not None:
+        bmz_search.check_bmz_model_compatibility = lambda model, workflow_specs=None: checks.check(model, workflow_specs)
+        bmz_search.find_bmz_models = find_models
+    try:
+        found = [m for m in search(callback=checked, **kwargs) if fits(m)]
+    finally:
+        bmz_search.check_bmz_model_compatibility, bmz_search.find_bmz_models = check, find
+    if checks is not None:
+        checks.save(models)
+    return found
+
+
+class _CompatibilityCache:
+    """biapy.models.bmz_search.CompatibilityCache (BiaPy after 3.7.3), with the check to run."""
+
+    def __init__(self, path, check):
+        import json
+
+        import biapy
+        from biapy.models import BMZ_MODEL_BLACKLIST
+
+        self.path, self.check_fn = path, check
+        self.stamp = [1, biapy.__version__, sorted(BMZ_MODEL_BLACKLIST)]
+        self.results = {}
+        try:
+            with open(path, "r", encoding="utf8") as f:
+                data = json.load(f, object_hook=_from_json)
+            if data.get("stamp") == self.stamp:
+                self.results = data["results"]
+        except (OSError, ValueError, KeyError, AttributeError):
+            pass
+
+    @staticmethod
+    def _model(model):
+        nickname = model.get("nickname") or model.get("alias")
+        changed = (model.get("raw") or {}).get("last_modified")
+        return None if not nickname or changed is None else "{}|{}".format(nickname, changed)
+
+    def check(self, model, workflow_specs):
+        name = self._model(model)
+        key = None if name is None else "{}|{}|{}|{}".format(
+            name, workflow_specs["workflow_type"], workflow_specs["ndim"], workflow_specs["nclasses"])
+        if key in self.results:
+            return self.results[key]
+        compat = self.check_fn(model, workflow_specs=workflow_specs)
+        if key is not None:
+            self.results[key] = compat
+        return compat
+
+    def save(self, models):
+        import json
+        import os
+
+        live = {self._model(m) for m in models}
+        results = {k: v for k, v in self.results.items() if k.rsplit("|", 3)[0] in live}
+        try:
+            os.makedirs(os.path.dirname(os.path.abspath(self.path)), exist_ok=True)
+            with open(self.path + ".tmp", "w", encoding="utf8") as f:
+                json.dump({"stamp": self.stamp, "results": _to_json(results)}, f, default=str)
+            os.replace(self.path + ".tmp", self.path)
+        except OSError:
+            pass
+
+
+def _to_json(value):
+    if isinstance(value, tuple):
+        return {"__tuple__": [_to_json(v) for v in value]}
+    if isinstance(value, list):
+        return [_to_json(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _to_json(v) for k, v in value.items()}
+    return value
+
+
+def _from_json(d):
+    return tuple(d["__tuple__"]) if len(d) == 1 and "__tuple__" in d else d
 
 
 def check_folder(*args, train_channels=None, **kwargs):
@@ -191,3 +275,96 @@ def check_folder(*args, train_channels=None, **kwargs):
         "data_constraints": {},
         "sample_info": {},
     }
+
+
+def predict(biapy, image, **kwargs):
+    """BiaPy.predict (same arguments and result), with the fixes it needs."""
+    # A second predict() on the same instance failed in classification: the predictions of the previous one were kept
+    if needed(NEXT_RELEASE):
+        biapy.workflow.all_pred, biapy.workflow.all_gt, biapy.workflow.metrics_per_test_file = [], [], []
+    return biapy.predict(image, **kwargs)
+
+
+def zoo_downloads():
+    """
+    biapy.models' (bmz_model_files, downloaded_bmz_model, download_bmz_model, BMZ_MODELS_CACHE): keeping zoo models on
+    disk to load them without the network. Copies of them before they were in BiaPy.
+    """
+    if not needed(NEXT_RELEASE):
+        from biapy.models import BMZ_MODELS_CACHE, bmz_model_files, download_bmz_model, downloaded_bmz_model
+
+        return bmz_model_files, downloaded_bmz_model, download_bmz_model, BMZ_MODELS_CACHE
+
+    import os
+
+    import pooch
+    import requests
+    import yaml
+
+    from biapy.models import BMZ_HYPHA_FILES_URL, find_bmz_description_url
+
+    cache, marker_name = os.path.join(str(pooch.os_cache("biapy")), "bmz_models"), "biapy_download.json"
+
+    def bmz_model_files(model_id, timeout=30):
+        r = requests.get(BMZ_HYPHA_FILES_URL.format(model_id), timeout=timeout)
+        r.raise_for_status()
+        return [{"name": str(f["name"]), "size": int(f.get("size") or 0), "last_modified": f.get("last_modified")}
+                for f in r.json() if isinstance(f, dict) and f.get("type", "file") == "file"]
+
+    def downloaded_bmz_model(model_id, folder=None):
+        folder = folder or os.path.join(cache, model_id)
+        try:
+            with open(os.path.join(folder, marker_name), "r", encoding="utf8") as f:
+                path = os.path.join(folder, yaml.safe_load(f)["description"])
+        except Exception:
+            return None
+        return path if os.path.isfile(path) else None
+
+    def download_bmz_model(model_id, folder=None, callback=None, timeout=30):
+        folder = folder or os.path.join(cache, model_id)
+        marker = os.path.join(folder, marker_name)
+        try:
+            files = bmz_model_files(model_id, timeout=timeout)
+        except requests.RequestException:
+            path = downloaded_bmz_model(model_id, folder)
+            if path is None:
+                raise
+            return path
+        try:
+            with open(marker, "r", encoding="utf8") as f:
+                had = {(x["name"], x["size"], x["last_modified"]) for x in yaml.safe_load(f)["files"]}
+        except Exception:
+            had = set()
+        todo = [f for f in files if (f["name"], f["size"], f["last_modified"]) not in had
+                or not os.path.isfile(os.path.join(folder, f["name"]))]
+
+        os.makedirs(folder, exist_ok=True)
+        # The files that are there, and the description once they all are (downloaded_bmz_model)
+        kept = [f for f in files if f not in todo]
+
+        def save(description=None):
+            with open(marker, "w", encoding="utf8") as out:
+                yaml.safe_dump({"description": description, "files": kept}, out)
+
+        total, done = sum(f["size"] for f in todo), 0
+        base = BMZ_HYPHA_FILES_URL.format(model_id)
+        for f in todo:
+            part = os.path.join(folder, f["name"] + ".part")
+            with requests.get(base + f["name"], stream=True, timeout=timeout) as r:
+                r.raise_for_status()
+                with open(part, "wb") as out:
+                    for chunk in r.iter_content(chunk_size=1 << 20):
+                        out.write(chunk)
+                        done += len(chunk)
+                        if callback is not None:
+                            callback(done, total)
+            os.replace(part, os.path.join(folder, f["name"]))
+            kept.append(f)
+            save()
+        url = find_bmz_description_url(model_id, timeout=timeout)
+        if url is None:
+            raise ValueError("The BioImage Model Zoo model '{}' has no description among its files".format(model_id))
+        save(url.rsplit("/", 1)[-1])
+        return os.path.join(folder, url.rsplit("/", 1)[-1])
+
+    return bmz_model_files, downloaded_bmz_model, download_bmz_model, cache

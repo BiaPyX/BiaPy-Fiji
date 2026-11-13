@@ -37,18 +37,21 @@ public class PythonBridge {
 	private static final String RESULT_PREFIX = "BIAPY_FIJI_RESULT:";
 	private static final String RES = "/biapy/python/";
 	private static final String[] FILES = { "biapy_fiji_bridge.py", "biapy_compat.py", "biapy_run.py" };
-	/** Commands run by the server: the ones of the wizard, which need BiaPy imported. */
+	/** Commands run by the server: the ones that need BiaPy imported (the model of "Apply model" stays loaded in it). */
 	private static final Set<String> SERVED = new HashSet<>(
 			Arrays.asList("check_data", "preview_data", "find_models", "build_config", "read_config", "citations",
-					"estimate_resources", "workflow_info"));
+					"estimate_resources", "workflow_info", "cache_folders", "describe_model", "load_model", "apply_model"));
 
 	private static final Gson GSON = new Gson();
 	/** The server runs one command at a time (not Server.class, which cancel() needs meanwhile). */
-	private static final Object SERVER_CALLS = new Object();
+	private static final java.util.concurrent.locks.ReentrantLock SERVER_CALLS = new java.util.concurrent.locks.ReentrantLock();
 	private static File extractedScript;
 
 	private volatile ProcessRunner runner;
 	private volatile boolean usingServer;
+	private volatile boolean cancelled;
+	/** The thread waiting for the server to finish another command, to stop waiting if canceled. */
+	private volatile Thread waiting;
 
 	/** Error raised when the Python side reports a failure. */
 	public static class BridgeException extends Exception {
@@ -106,19 +109,31 @@ public class PythonBridge {
 
 	/** Runs the command in the server, starting it if needed. One command at a time. */
 	private String callServer(String command, JsonObject args, Consumer<String> log) throws Exception {
-		synchronized (SERVER_CALLS) {
+		waiting = Thread.currentThread();
+		try {
+			if (cancelled) throw new InterruptedException();
+			SERVER_CALLS.lockInterruptibly();
+		} catch (InterruptedException e) {
+			throw new InterruptedException("Canceled");
+		} finally {
+			waiting = null;
+		}
+		try {
 			Server s = Server.get();
 			usingServer = true;
-			try {
-				return s.call(command, args, log);
-			} finally {
-				usingServer = false;
-			}
+			if (cancelled) throw new InterruptedException("Canceled");
+			return s.call(command, args, log);
+		} finally {
+			usingServer = false;
+			SERVER_CALLS.unlock();
 		}
 	}
 
 	/** Stops the running command. A command in the server stops the server, which restarts with the next one. */
 	public void cancel() {
+		cancelled = true;
+		Thread w = waiting;
+		if (w != null) w.interrupt();
 		ProcessRunner r = runner;
 		if (r != null) r.cancel();
 		if (usingServer) Server.stop(true);
@@ -141,6 +156,16 @@ public class PythonBridge {
 	/** Stops the server, e.g. before the environment changes (it starts again with the next command). */
 	public static void shutdown() {
 		Server.stop(false);
+	}
+
+	/** Stops the server between two commands (the next one starts it again), e.g. to use another GPU. */
+	public static void restartServer() throws InterruptedException {
+		SERVER_CALLS.lockInterruptibly();
+		try {
+			Server.stop(false);
+		} finally {
+			SERVER_CALLS.unlock();
+		}
 	}
 
 	/** A Python file shipped with the plugin (e.g. "biapy_run.py"), extracted next to the bridge. */

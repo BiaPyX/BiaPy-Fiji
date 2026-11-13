@@ -10,6 +10,7 @@ import os
 import re
 import subprocess
 import sys
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -113,6 +114,10 @@ def test_compat_fixes(monkeypatch):
     assert [m["opts"]["DATA.PATCH_SIZE"][-1] for m in models] == [3]
     assert calls[0][2] is None and "1 channel" in calls[0][4]
     assert "incomplete" in BMZ_MODEL_BLACKLIST["romantic-shark"]["all"]
+    used = SimpleNamespace(workflow=SimpleNamespace(all_pred=np.array(2), all_gt=[], metrics_per_test_file=[{}]),
+                           predict=lambda image, **kw: (image, kw))
+    assert biapy_compat.predict(used, "img", return_prediction=False) == ("img", {"return_prediction": False})
+    assert used.workflow.all_pred == [] and used.workflow.metrics_per_test_file == []  # left by the previous image
     res = biapy_compat.check_folder("f", "DATA.TEST.PATH", "SEMANTIC_SEG", "2D", train_channels=1)
     assert res["error"] and "training images have 1" in res["error_message"]
     assert "train_channels" not in seen["check_kwargs"]  # unknown to that BiaPy
@@ -133,8 +138,117 @@ def test_compat_fixes(monkeypatch):
     assert cfg["DATA"]["NORMALIZATION"]["TYPE"] == "zero_mean_unit_variance"
     assert cfg["MODEL"]["FIND_UNUSED_PARAMETERS"]  # not fixed in BiaPy
     assert len(biapy_compat.list_compatible_bmz_models(nchannels=3, callback=lambda *a: None)) == 2
+    used.workflow.all_pred = "kept"
+    biapy_compat.predict(used, "img")
+    assert used.workflow.all_pred == "kept"  # BiaPy resets it itself
     assert not biapy_compat.check_folder("f", "DATA.TEST.PATH", "SEMANTIC_SEG", "2D", train_channels=1)["error"]
     assert seen["check_kwargs"]["train_channels"] == 1  # BiaPy compares them itself
     biapy_compat.build_config(json.loads(json.dumps(data_answers)))
     assert seen["answers"]["detection_point_radius"] == 4  # BiaPy uses them itself
     assert seen["answers"]["sample_info"]["DATA.TRAIN.PATH"]["fingerprint"]["spacing"] is None
+
+
+def test_compat_search_cache(monkeypatch, tmp_path):
+    """The zoo search keeps its checks in a file (BiaPy's own cache after 3.7.3, biapy_compat's before)."""
+    pytest.importorskip("biapy.wizard")
+    import biapy
+    from biapy.models import bmz_search
+
+    sys.path.insert(0, PYTHON_DIR)
+    import biapy_compat
+
+    models = [{"nickname": n, "raw": {"last_modified": 1, "manifest": {"name": n}}} for n in ("a", "b")]
+    checked = []
+
+    def check(model, workflow_specs=None):
+        checked.append(model["nickname"])
+        return {"error": False, "reason_message": "", "opts": {"DATA.PATCH_SIZE": (8, 8, 1)},
+                "workflow_info": {"workflow_type": "SEMANTIC_SEG", "ndim": "2D"}}
+
+    monkeypatch.setattr(bmz_search, "find_bmz_models", lambda: models)
+    monkeypatch.setattr(bmz_search, "check_bmz_model_compatibility", check)
+    versions = ["3.7.3"] + ([biapy_compat.NEXT_RELEASE] if hasattr(bmz_search, "CompatibilityCache") else [])
+    for version in versions:
+        monkeypatch.setattr(biapy, "__version__", version)
+        cache = str(tmp_path / version / "bmz.json")
+        checked.clear()
+        first = biapy_compat.list_compatible_bmz_models(nchannels=1, cache=cache)
+        assert sorted(checked) == ["a", "b"] and len(first) == 2
+        checked.clear()
+        again = biapy_compat.list_compatible_bmz_models(nchannels=1, cache=cache)
+        assert checked == [] and [m["nickname"] for m in again] == [m["nickname"] for m in first], version
+        assert again[0]["opts"]["DATA.PATCH_SIZE"] == (8, 8, 1)
+        assert bmz_search.check_bmz_model_compatibility is check  # left as it was
+
+
+def test_apply_model_device_and_channels(monkeypatch):
+    """A process that built a model on a device asks to be restarted for another; the raw channels are counted."""
+    pytest.importorskip("biapy.wizard")
+    from biapy.config.config import Config
+
+    sys.path.insert(0, PYTHON_DIR)
+    import biapy_fiji_bridge as bridge
+
+    monkeypatch.setitem(bridge._applied, "device", "2")
+    assert bridge.cmd_load_model({"model": "m.pth", "out_dir": "/tmp", "gpu": ""}) == {"restart": True}
+    with pytest.raises(RuntimeError):
+        bridge._model({"model": "m.pth", "out_dir": "/tmp", "gpu": "3"})
+
+    cfg = Config("/tmp", "x").get_cfg_defaults()
+    cfg.PROBLEM.NDIM = "2D"
+    cfg.PROBLEM.INSTANCE_SEG.DATA_CHANNELS = ["F", "C", "M"]
+    assert [(o["channel"], o["count"]) for o in bridge._instance_outputs(cfg)] == [("F", 1), ("C", 1), ("M", 1)]
+    cfg.PROBLEM.INSTANCE_SEG.DATA_CHANNELS = ["F", "R"]
+    cfg.PROBLEM.INSTANCE_SEG.DATA_CHANNELS_EXTRA_OPTS = [{"R": {"nrays": 16}}]
+    cfg.DATA.N_CLASSES = 3
+    assert [(o["channel"], o["count"]) for o in bridge._instance_outputs(cfg)] == [("F", 1), ("R", 16), ("class", 3)]
+    # A zoo model described from its search entry, without downloading it
+    zoo = {"workflow_type": "INSTANCE_SEG", "ndim": "3D", "imposed_vars": {
+        "PROBLEM.INSTANCE_SEG.DATA_CHANNELS": ["F", "C", "M"], "DATA.PATCH_SIZE": [80, 80, 80, 3]}}
+    d = bridge.cmd_describe_model({"model": "x", "zoo": zoo})
+    assert (d["channels"], d["ndim"], d["post_processing"]) == (3, "3D", False)
+    assert [o["channel"] for o in d["instance_outputs"]] == ["F", "C", "M"]
+
+
+def test_compat_zoo_downloads(monkeypatch, tmp_path):
+    """A zoo model kept on disk (BiaPy's download_bmz_model after 3.7.3, biapy_compat's copy before)."""
+    pytest.importorskip("biapy.wizard")
+    import requests
+
+    import biapy.models as models
+
+    sys.path.insert(0, PYTHON_DIR)
+    import biapy_compat
+
+    files = {"rdf.yaml": b"type: model", "weights.pt": b"0" * 10}
+    got = []
+
+    class Response:
+        def __init__(self, url):
+            got.append(url.rsplit("/", 1)[-1])
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            pass
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return [{"type": "file", "name": n, "size": len(d), "last_modified": 1} for n, d in files.items()]
+
+        def iter_content(self, chunk_size):
+            yield files[got[-1]]
+
+    monkeypatch.setattr(requests, "get", lambda url, stream=False, timeout=30: Response(url))
+    monkeypatch.setattr(models, "find_bmz_description_url", lambda model_id, timeout=30: "https://x/files/rdf.yaml")
+    listed, downloaded, download, cache = biapy_compat.zoo_downloads()
+    assert sum(f["size"] for f in listed("m")) == 21 and cache.endswith("bmz_models")
+    folder = str(tmp_path / "m")
+    path = download("m", folder)
+    assert path == os.path.join(folder, "rdf.yaml") and downloaded("m", folder) == path
+    got.clear()
+    download("m", folder)
+    assert got == [""]  # only the list of files

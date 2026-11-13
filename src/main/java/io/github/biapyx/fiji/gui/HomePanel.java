@@ -35,7 +35,8 @@ public class HomePanel extends JPanel {
 
 	private static final long serialVersionUID = 1L;
 
-	private final MainPanel main;
+	/** Shows a page of the main window (the shortcuts to the Wizard and Run), or null: no shortcuts. */
+	private final java.util.function.Consumer<String> showPage;
 	private final JLabel envStatus = new JLabel();
 	private final JLabel envPath = new JLabel();
 	private final JLabel gpuStatus = new JLabel();
@@ -60,18 +61,52 @@ public class HomePanel extends JPanel {
 	private final JButton cancelBtn = UiUtils.secondaryButton("Cancel installation",
 			"Stop the installation; it can be started again later");
 	private final InstallProgressPanel progress = new InstallProgressPanel();
+	/** What the spinner waits for once the environment is known: PyTorch's own check (env_verify). */
+	private final JLabel verifyingNote = new JLabel();
 	private volatile BiaPyEnvManager installer;
 
-	public HomePanel(MainPanel main) {
+	public HomePanel(java.util.function.Consumer<String> showPage) {
 		super(new BorderLayout());
-		this.main = main;
+		this.showPage = showPage;
 		setBackground(BiaPyFiji.WHITE);
 
 		JPanel body = new WidthTrackingPanel();
 		body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
 		body.setBackground(BiaPyFiji.WHITE);
-		body.setBorder(BorderFactory.createEmptyBorder(20, 30, 20, 30));
+		body.setBorder(showPage == null ? BorderFactory.createEmptyBorder(12, 14, 12, 14)
+				: BorderFactory.createEmptyBorder(20, 30, 20, 30));
+		// Without page to show (the "Apply model" window), only the installation: the version and the environment
+		if (showPage != null) addWelcome(body);
+		body.add(buildVersionRow());
+		body.add(Box.createVerticalStrut(8));
+		body.add(buildEnvCard());
+		if (showPage == null) { // the "Apply model" window: the downloads under the environment, centered
+			JPanel center = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+			center.setOpaque(false);
+			JPanel card = foldersCard();
+			card.setPreferredSize(new java.awt.Dimension(130, card.getPreferredSize().height));
+			center.add(card);
+			center.setAlignmentX(Component.LEFT_ALIGNMENT);
+			center.setMaximumSize(new java.awt.Dimension(900, card.getPreferredSize().height));
+			body.add(Box.createVerticalStrut(10));
+			body.add(center);
+		}
+		if (showPage != null) {
+			body.add(Box.createVerticalStrut(18));
+			body.add(buildShortcuts());
+		}
+		body.add(Box.createVerticalGlue());
 
+		JScrollPane sp = new JScrollPane(body);
+		sp.setBorder(null);
+		sp.getViewport().setBackground(BiaPyFiji.WHITE);
+		sp.getVerticalScrollBar().setUnitIncrement(16);
+		add(sp, BorderLayout.CENTER);
+
+		EnvMonitor.addListener(this::updateEnvStatus);
+	}
+
+	private void addWelcome(JPanel body) {
 		JLabel title = UiUtils.title("Welcome to BiaPy", 26f);
 		title.setAlignmentX(Component.LEFT_ALIGNMENT);
 		body.add(title);
@@ -88,20 +123,6 @@ public class HomePanel extends JPanel {
 
 		body.add(buildLinks());
 		body.add(Box.createVerticalStrut(18));
-		body.add(buildVersionRow());
-		body.add(Box.createVerticalStrut(8));
-		body.add(buildEnvCard());
-		body.add(Box.createVerticalStrut(18));
-		body.add(buildShortcuts());
-		body.add(Box.createVerticalGlue());
-
-		JScrollPane sp = new JScrollPane(body);
-		sp.setBorder(null);
-		sp.getViewport().setBackground(BiaPyFiji.WHITE);
-		sp.getVerticalScrollBar().setUnitIncrement(16);
-		add(sp, BorderLayout.CENTER);
-
-		main.addEnvListener(this::updateEnvStatus);
 	}
 
 	/** BiaPy version to install (above the environment card). */
@@ -153,11 +174,19 @@ public class HomePanel extends JPanel {
 		links.add(linkCard("Forum", "images/forum_icon.png", BiaPyFiji.URL_FORUM));
 		links.add(linkCard("Documentation", "images/doc_icon.png", BiaPyFiji.URL_DOCS));
 		links.add(linkCard("Templates", "images/template_icon.png", BiaPyFiji.URL_TEMPLATES));
-		links.add(linkCard("Notebooks", "images/notebook_icon.png", BiaPyFiji.URL_NOTEBOOKS));
+		links.add(foldersCard());
 		links.add(linkCard("Citation", "images/citation_icon.png", BiaPyFiji.URL_CITATION));
 		links.setAlignmentX(Component.LEFT_ALIGNMENT);
 		links.setMaximumSize(new java.awt.Dimension(900, 110));
 		return links;
+	}
+
+	/** The card that opens the folders of the models downloaded (ModelFoldersDialog). */
+	private JPanel foldersCard() {
+		JPanel card = linkCard("Downloads", "images/broom_icon.png", null);
+		card.setToolTipText("Where the models downloaded are and how much space they take");
+		makeClickable(card, () -> ModelFoldersDialog.show(this));
+		return card;
 	}
 
 	private JPanel linkCard(String text, String icon, String url) {
@@ -170,8 +199,10 @@ public class HomePanel extends JPanel {
 		l.setFont(l.getFont().deriveFont(Font.PLAIN, 11f));
 		l.setForeground(BiaPyFiji.BLUE);
 		card.add(l, BorderLayout.SOUTH);
-		card.setToolTipText(url);
-		makeClickable(card, () -> UiUtils.openUrl(url));
+		if (url != null) {
+			card.setToolTipText(url);
+			makeClickable(card, () -> UiUtils.openUrl(url));
+		}
 		return card;
 	}
 
@@ -196,6 +227,9 @@ public class HomePanel extends JPanel {
 		titleRow.add(UiUtils.title("Python environment", 16f), BorderLayout.WEST);
 		JPanel spin = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
 		spin.setOpaque(false);
+		verifyingNote.setFont(verifyingNote.getFont().deriveFont(Font.PLAIN, 12f));
+		verifyingNote.setForeground(BiaPyFiji.GREY);
+		spin.add(verifyingNote);
 		spin.add(envSpinner);
 		titleRow.add(spin, BorderLayout.EAST);
 		info.add(titleRow);
@@ -221,9 +255,9 @@ public class HomePanel extends JPanel {
 		customBtn.addActionListener(e -> chooseCustomPython());
 		managedBtn.addActionListener(e -> {
 			PythonEnv.setCustomPython(null);
-			main.refreshEnvInfo();
+			EnvMonitor.refresh();
 		});
-		refreshBtn.addActionListener(e -> main.refreshEnvInfo());
+		refreshBtn.addActionListener(e -> EnvMonitor.refresh());
 		cancelBtn.addActionListener(e -> {
 			BiaPyEnvManager i = installer;
 			if (i != null) i.cancel();
@@ -291,7 +325,7 @@ public class HomePanel extends JPanel {
 		};
 		l.setFont(l.getFont().deriveFont(Font.PLAIN, 12f));
 		card.add(l, BorderLayout.CENTER);
-		makeClickable(card, () -> main.showPage(page));
+		makeClickable(card, () -> showPage.accept(page));
 		return card;
 	}
 
@@ -413,6 +447,7 @@ public class HomePanel extends JPanel {
 		String state = info.get("_state").getAsString();
 		boolean verifying = info.has("_verifying") && info.get("_verifying").getAsBoolean();
 		envSpinner.spin("checking".equals(state) || verifying);
+		verifyingNote.setText(verifying ? "Checking that PyTorch works and can use the GPU . . ." : "");
 
 		String custom = PythonEnv.getCustomPython();
 		envPath.setText("Python: " + PythonEnv.getPython().getAbsolutePath() + (custom != null ? "  (user selected)" : "  (Fiji-managed)"));
@@ -491,7 +526,7 @@ public class HomePanel extends JPanel {
 		File f = UiUtils.chooseFile(this, PythonEnv.getCustomPython(), "Python executable");
 		if (f == null) return;
 		PythonEnv.setCustomPython(f.getAbsolutePath());
-		main.refreshEnvInfo();
+		EnvMonitor.refresh();
 	}
 
 	private void install() {
@@ -563,7 +598,7 @@ public class HomePanel extends JPanel {
 				installer = null;
 				cancelBtn.setVisible(false);
 				if (fe != null) UiUtils.error(this, "BiaPy installation failed:\n" + fe);
-				main.refreshEnvInfo();
+				EnvMonitor.refresh();
 			});
 		}, "BiaPy-install").start();
 	}

@@ -67,7 +67,6 @@ public final class BiaPyFiji {
 	public static final String URL_FORUM = "https://forum.image.sc/tag/biapy";
 	public static final String URL_TEMPLATES = "https://github.com/BiaPyX/BiaPy/tree/master/biapy/config/templates";
 	public static final String URL_DOCS = "https://biapy.readthedocs.io/en/latest/";
-	public static final String URL_NOTEBOOKS = "https://github.com/BiaPyX/BiaPy/tree/master/notebooks";
 	public static final String URL_CITATION = "https://www.nature.com/articles/s41592-025-02699-y";
 	// N5 release of Fiji that reads and writes Zarr format 3 (OME-Zarr 0.5), the Zarr files BiaPy writes
 	public static final String URL_FIJI_ZARR3 = "https://forum.image.sc/t/fiji-can-read-and-write-zarr3-ome-zarr-v0-5-new-n5-release/121905";

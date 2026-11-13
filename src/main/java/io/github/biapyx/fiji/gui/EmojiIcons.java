@@ -32,6 +32,8 @@ public final class EmojiIcons {
 		return t;
 	});
 
+	private static final java.io.File DIR = new java.io.File(io.github.biapyx.fiji.env.PythonEnv.getManagedRoot(), "cache/emoji");
+
 	private EmojiIcons() {}
 
 	/** Shows the emoji as an image of the given size in the label, when it arrives. */
@@ -44,16 +46,21 @@ public final class EmojiIcons {
 			return;
 		}
 		LOADER.submit(() -> {
+			// Kept on disk, so the next sessions don't download them again
+			java.io.File file = new java.io.File(DIR, fileName(emoji) + ".png");
 			for (String base : SOURCES) {
 				try {
-					URLConnection conn = new URL(base + fileName(emoji) + ".png").openConnection();
-					conn.setConnectTimeout(10000);
-					conn.setReadTimeout(20000);
-					BufferedImage img;
-					try (InputStream in = conn.getInputStream()) {
-						img = ImageIO.read(in);
+					BufferedImage img = file.isFile() ? ImageIO.read(file) : null;
+					if (img == null) {
+						URLConnection conn = new URL(base + fileName(emoji) + ".png").openConnection();
+						conn.setConnectTimeout(10000);
+						conn.setReadTimeout(20000);
+						try (InputStream in = conn.getInputStream()) {
+							img = ImageIO.read(in);
+						}
+						if (img == null) continue;
+						if (DIR.isDirectory() || DIR.mkdirs()) ImageIO.write(img, "png", file);
 					}
-					if (img == null) continue;
 					ImageIcon icon = new ImageIcon(img.getScaledInstance(size, size, Image.SCALE_SMOOTH));
 					CACHE.put(key, icon);
 					SwingUtilities.invokeLater(() -> target.setIcon(icon));

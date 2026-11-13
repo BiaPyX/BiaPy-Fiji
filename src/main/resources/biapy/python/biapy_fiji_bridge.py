@@ -40,15 +40,17 @@ WARM_UP_MODULES = [
 
 
 def log(msg):
-    print(msg, flush=True)
+    # Not print(): once a model is loaded, BiaPy's print puts the time before each line, hiding the prefixes below
+    sys.stdout.write("{}\n".format(msg))
+    sys.stdout.flush()
 
 
 def step(msg):
-    print(STEP_PREFIX + msg, flush=True)
+    log(STEP_PREFIX + msg)
 
 
 def progress(done, total, name):
-    print(PROGRESS_PREFIX + json.dumps({"done": done, "total": total, "name": name}), flush=True)
+    log(PROGRESS_PREFIX + json.dumps({"done": done, "total": total, "name": name}))
 
 
 def wizard():
@@ -233,7 +235,7 @@ def cmd_find_models(args):
     log("Getting the list of models from the BioImage Model Zoo . . .")
     models = list_compatible_bmz_models(
         workflow=args["workflow"], ndim=args["ndim"], nchannels=args.get("nchannels", "all"), quiet=True,
-        callback=checked,
+        callback=checked, cache=args.get("cache"),
     )
     log("{} compatible models found".format(len(models)))
     return {"models": [entry(m) for m in models]}
@@ -278,6 +280,22 @@ def cmd_estimate_resources(args):
     return {"resources": to_jsonable(report.get("resources")), "config": to_jsonable(cfg)}
 
 
+def _instance_outputs(cfg):
+    """The channels of the raw prediction of instance segmentation (per_image), in order: how many each one takes."""
+    from biapy.data.pre_processing import instance_channel_names
+
+    inst = cfg.PROBLEM.INSTANCE_SEG
+    opts = dict(inst.DATA_CHANNELS_EXTRA_OPTS[0]) if inst.DATA_CHANNELS_EXTRA_OPTS else {}
+    names = instance_channel_names(inst.DATA_CHANNELS, opts, 3 if cfg.PROBLEM.NDIM == "3D" else 2)
+    outputs = [
+        {"channel": ch, "count": sum(1 for c, _ in names if c == ch), "type": opts.get(ch, {}).get("type")}
+        for ch in dict.fromkeys(c for c, _ in names)
+    ]
+    if cfg.DATA.N_CLASSES > 2:
+        outputs.append({"channel": "class", "count": int(cfg.DATA.N_CLASSES), "type": None})
+    return outputs
+
+
 def cmd_workflow_info(args):
     """
     The settings of a configuration that the "Workflow info" window explains, as BiaPy resolves them (e.g. the
@@ -310,22 +328,10 @@ def cmd_workflow_info(args):
     out["ome_zarr_version"] = str(cfg.DATA.OME_ZARR.VERSION)
     if p.TYPE == "INSTANCE_SEG":
         inst = p.INSTANCE_SEG
-        opts = dict(inst.DATA_CHANNELS_EXTRA_OPTS[0]) if inst.DATA_CHANNELS_EXTRA_OPTS else {}
-        dims = 3 if p.NDIM == "3D" else 2
-        from biapy.data.pre_processing import instance_channel_names
-
-        # The channels of the raw prediction (per_image), in order: how many each one takes
-        names = instance_channel_names(inst.DATA_CHANNELS, opts, dims)
-        outputs = [
-            {"channel": ch, "count": sum(1 for c, _ in names if c == ch), "type": opts.get(ch, {}).get("type")}
-            for ch in dict.fromkeys(c for c, _ in names)
-        ]
-        if out["n_classes"] > 2:
-            outputs.append({"channel": "class", "count": out["n_classes"], "type": None})
         ws = inst.WATERSHED
         out["instance"] = {
             "channels": list(inst.DATA_CHANNELS),
-            "outputs": outputs,
+            "outputs": _instance_outputs(cfg),
             "creation": inst.INSTANCE_CREATION_PROCESS,
             "watershed": {
                 "seed_channels": list(ws.SEED_CHANNELS),
@@ -404,6 +410,211 @@ def cmd_citations(args):
     return {"citations": [c.to_dict() for c in get_citations(cfg, extra=extra)]}
 
 
+#: The model applied to the images open in Fiji, kept loaded between images
+# "device": the one of the first model built in this process. CUDA reads CUDA_VISIBLE_DEVICES once per process, so
+# a model can't move to another device afterwards: the server is restarted for it (cmd_load_model)
+_applied = {"key": None, "biapy": None, "device": None}
+
+
+def _device():
+    """The GPU with the most free memory (as nvidia-smi numbers them), Apple's GPU, or "" (CPU)."""
+    import subprocess
+
+    import torch
+
+    if torch.cuda.is_available():
+        if os.environ.get("CUDA_VISIBLE_DEVICES"):
+            return "0"
+        try:
+            free = subprocess.run(["nvidia-smi", "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
+                                  capture_output=True, text=True, timeout=20).stdout.split()
+            free = [int(f) for f in free]
+            return str(free.index(max(free)))
+        except Exception:
+            return "0"
+    mps = getattr(torch.backends, "mps", None)
+    return "mps" if mps is not None and mps.is_available() else ""
+
+
+def _model(args, source=None):
+    """
+    The BiaPy instance of the model of args ("model": a .pth checkpoint or a BioImage Model Zoo nickname), built from
+    "source" if given (the zoo model downloaded).
+    """
+    from biapy import BiaPy
+
+    if not hasattr(BiaPy, "predict"):
+        raise RuntimeError("The BiaPy version installed can't apply a model to an image open in Fiji. Install a newer "
+                           "BiaPy version in the 'Installation' tab.")
+    # "gpu": the device chosen (a GPU number, "mps" or "" for the CPU); without it, the GPU with most free memory
+    key = (args["model"], args["out_dir"], args.get("gpu"))
+    if _applied["key"] != key:
+        _applied["key"], _applied["biapy"] = None, None
+        device = args["gpu"] if "gpu" in args else _device()
+        if _applied["device"] not in (None, device):
+            raise RuntimeError("This Python process already used another device: restart it to use {}.".format(
+                _device_name(device)))
+        _applied["device"] = device
+        log("Building the model {} . . .".format(args["model"]))
+        _applied["biapy"] = BiaPy.load_workflow_from_model(source or args["model"], result_dir=args["out_dir"],
+                                                           name="apply", gpu=device)
+        # The raw output of the model is written too, to be opened in Fiji if asked
+        _applied["biapy"].update_config({"TEST.SAVE_MODEL_RAW_OUTPUT": True})
+        _applied["key"] = key
+    return _applied["biapy"]
+
+
+def _device_name(device):
+    return "GPU " + device if device.isdigit() else device.upper() or "CPU"
+
+
+def _model_info(cfg, post_processing):
+    """What "Apply model" needs to know of a model: its workflow, the images it takes and what its outputs show."""
+    out = {
+        "workflow": cfg.PROBLEM.TYPE,
+        "ndim": cfg.PROBLEM.NDIM,
+        "channels": int(list(cfg.DATA.PATCH_SIZE)[-1]),
+        "tracking": bool(cfg.PROBLEM.TRACKING.ENABLE),
+        "post_processing": bool(post_processing),
+        "classes": int(cfg.DATA.N_CLASSES),
+    }
+    if cfg.PROBLEM.TYPE == "INSTANCE_SEG":
+        out["instance_outputs"] = _instance_outputs(cfg)
+    if cfg.PROBLEM.TYPE == "DETECTION":
+        out["min_th"] = str(cfg.TEST.DET_MIN_TH_TO_BE_PEAK)
+        out["min_distance"] = str(cfg.TEST.DET_PEAK_LOCAL_MAX_MIN_DISTANCE)
+    return out
+
+
+def cmd_describe_model(args):
+    """
+    What a model is (as load_model returns it) without downloading it, building it or touching the GPU: the
+    configuration inside a .pth checkpoint ("model"), or the options of a BioImage Model Zoo model found by find_models
+    ("zoo": its search entry: workflow_type, ndim and imposed_vars, what BiaPy sets from the model).
+    """
+    from yacs.config import CfgNode as CN
+
+    from biapy import BiaPy
+    from biapy.config.config import Config, update_dependencies
+    from biapy.engine.check_configuration import convert_old_model_cfg_to_current_version
+
+    zoo = args.get("zoo")
+    download = None
+    if zoo:
+        from biapy_compat import zoo_downloads
+
+        files, downloaded, _, cache = zoo_downloads()
+        try:
+            size = sum(f["size"] for f in files(args["model"]))
+        except Exception:
+            size = None
+        download = {"size": size, "saved": downloaded(args["model"]) is not None,
+                    "folder": os.path.join(cache, args["model"])}
+        raw = {"PROBLEM": {"TYPE": zoo["workflow_type"], "NDIM": zoo["ndim"]}}
+    else:
+        raw = BiaPy._config_from_checkpoint(args["model"])
+    manager = Config("describe", "describe")
+    manager._C.merge_from_other_cfg(CN(convert_old_model_cfg_to_current_version(raw)))
+    update_dependencies(manager)
+    cfg = manager.get_cfg_defaults()
+    if zoo:
+        opts = zoo["imposed_vars"]
+        cfg.merge_from_list([x for k in opts if k.startswith("PROBLEM.") or k.startswith("DATA.") for x in (k, opts[k])])
+        update_dependencies(cfg)
+    # shortcut: the workflows' rule for post_processing["per_image"] (base_workflow: median filter; instance_seg:
+    # synapse points), copied as they can't be built without the GPU; load_model returns the workflow's own
+    inst = cfg.PROBLEM.INSTANCE_SEG
+    post = (cfg.TEST.POST_PROCESSING.MEDIAN_FILTER and not (cfg.PROBLEM.NDIM == "2D" and cfg.TEST.ANALIZE_2D_IMGS_AS_3D_STACK)) or (
+        cfg.PROBLEM.TYPE == "INSTANCE_SEG" and inst.TYPE != "regular"
+        and (inst.SYNAPSES.REMOVE_CLOSE_PRE_POINTS_RADIUS > 0 or inst.SYNAPSES.REMOVE_CLOSE_POST_POINTS_RADIUS > 0)
+    )
+    out = _model_info(cfg, post)
+    if download:
+        out["download"] = download
+    return out
+
+
+def cmd_load_model(args):
+    """
+    Builds a model to apply it to the images open in Fiji, downloading it if needed: a BiaPy .pth checkpoint or a
+    BioImage Model Zoo nickname ("model"; "keep": keep it in the cache folder), on "gpu", with its results written in
+    "out_dir", and loads its weights there.
+    It is kept for the next images. Returns what it is (as describe_model), or {"restart": true} if this process can't
+    use that device: the server must be restarted.
+    """
+    if "gpu" in args and _applied["device"] not in (None, args["gpu"]):
+        return {"restart": True}
+    import shutil
+    import tempfile
+    import time
+
+    # A zoo model is downloaded first (kept in the cache folder if "keep" or if it already is, else only while it is
+    # built), with its progress as DOWNLOAD_PROGRESS:<bytes done> <bytes in all> lines and DOWNLOAD_KEPT once kept
+    source, temporary = None, None
+    built = _applied["key"] == (args["model"], args["out_dir"], args.get("gpu"))
+    if not args["model"].endswith(".pth"):
+        from biapy_compat import zoo_downloads
+
+        _, downloaded, download, _ = zoo_downloads()
+        kept = downloaded(args["model"]) is not None
+    # Built already: downloaded only to keep it now
+    if not args["model"].endswith(".pth") and (not built or (args.get("keep") and not kept)):
+        if not args.get("keep") and not kept:
+            temporary = tempfile.mkdtemp(prefix="biapy_zoo_model_")
+        out, last = sys.stdout, [0.0]
+
+        def progress(done, total):
+            if time.time() - last[0] > 0.5 or done >= total:
+                last[0] = time.time()
+                out.write("DOWNLOAD_PROGRESS:{} {}\n".format(done, total))
+                out.flush()
+
+        source = download(args["model"], temporary, callback=progress)
+        if temporary is None:
+            out.write("DOWNLOAD_KEPT\n")  # complete, even if building the model fails below
+            out.flush()
+    try:
+        b = _model(args, source)
+        if not b.workflow.model_prepared:
+            log("Loading the model {} on {} . . .".format(args["model"], _device_name(_applied["device"])))
+            b.workflow.prepare_model()
+    finally:
+        if temporary:
+            shutil.rmtree(temporary, ignore_errors=True)
+    return _model_info(b.cfg, b.workflow.post_processing.get("per_image"))
+
+
+def cmd_cache_folders(args):
+    """
+    Where models are downloaded: BiaPy's folder (the zoo models "Apply model" keeps) and bioimageio's (the zoo models
+    of the jobs, downloaded by BiaPy through bioimageio).
+    """
+    from bioimageio.spec import settings
+
+    from biapy_compat import zoo_downloads
+
+    return {"biapy": zoo_downloads()[3], "bioimageio": str(settings.cache_path)}
+
+
+def cmd_apply_model(args):
+    """
+    Applies the model of cmd_load_model to an image (a .npy file, "image": (y, x, c) in 2D, (z, y, x, c) in 3D). Its
+    results are in the usual folders of a test (raw output in per_image, instances in per_image_instances...) of the
+    "results_dir" returned, which only holds this image's.
+    """
+    import shutil
+
+    import numpy as np
+
+    from biapy_compat import predict
+
+    b = _model(args)
+    results = b.cfg.PATHS.RESULT_DIR.PATH
+    shutil.rmtree(results, ignore_errors=True)
+    predict(b, np.load(args["image"]), return_prediction=False)
+    return {"results_dir": results}
+
+
 COMMANDS = {
     "env_quick": cmd_env_quick,
     "env_verify": cmd_env_verify,
@@ -416,6 +627,10 @@ COMMANDS = {
     "workflow_info": cmd_workflow_info,
     "read_config": cmd_read_config,
     "citations": cmd_citations,
+    "cache_folders": cmd_cache_folders,
+    "describe_model": cmd_describe_model,
+    "load_model": cmd_load_model,
+    "apply_model": cmd_apply_model,
 }
 
 
@@ -427,7 +642,7 @@ def run_command(command, args):
         log(traceback.format_exc())
         result = {"ok": False, "error": "{}: {}".format(type(e).__name__, e), "traceback": traceback.format_exc()}
     sys.stdout.flush()
-    print(RESULT_PREFIX + json.dumps(result), flush=True)
+    log(RESULT_PREFIX + json.dumps(result))
 
 
 def warm_up():
@@ -441,6 +656,11 @@ def warm_up():
 
 
 def serve():
+    import sysconfig
+
+    # Python < 3.12 fills these in a shared dict without a lock: a command reading them while the warm-up does
+    # (e.g. importing torch) got it half filled ("AttributeError: 'userbase'"). Filled here, before the thread
+    sysconfig.get_config_vars()
     # Imported in the background while the user answers; a command that needs a module meanwhile waits for it
     threading.Thread(target=warm_up, name="warm-up", daemon=True).start()
     for line in sys.stdin.buffer:  # bytes: the requests are UTF-8 whatever the platform's encoding

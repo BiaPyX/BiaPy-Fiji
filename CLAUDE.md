@@ -25,7 +25,7 @@ environment. The BiaPy core is a separate repo (`/data2/dfranco/BiaPy`) with its
 ## Layout
 
 - `src/main/java/io/github/biapyx/fiji/`
-  - `gui/`: pages and dialogs (`WizardPanel`, `RunPanel`, `JobPanel`, ...). All popups go through
+  - `gui/`: pages and dialogs (`WizardPanel`, `RunPanel`, `JobPanel`, `ApplyModelPanel`, ...). All popups go through
     `UiUtils.htmlPage` / `UiUtils.confirmHtml` / help windows, in the same format.
   - `wizard/WizardModel.java`: questionnaire state, conditions and navigation.
   - `env/`: environment install, BiaPy versions, GPUs, `PythonBridge` (runs the Python side).
@@ -60,6 +60,77 @@ UI-only changes (Java, `questions.json`) stay in the plugin.
 
 Exception: `RunPanel.mpsConfig` (Java) patches the config for Apple GPUs ("--gpu mps" ran on the CPU in old BiaPy).
 
+## Apply model
+
+`Plugins > BiaPy > Apply model` (`ApplyModel_Plugin`, `gui/ApplyModelWindow` with `gui/ApplyModelPanel`) applies a
+model to an image open in Fiji; `Plugins > BiaPy > Apply entire workflow` is the main window.
+- "Downloads" (broom icon: a link card in the main window's home, in place of Notebooks, and centered under the
+  environment box of Apply model's Installation tab) opens `gui/ModelFoldersDialog`: BiaPy's folder (zoo models kept by
+  Apply model) and bioimageio's (zoo models of the jobs, which BiaPy downloads through bioimageio), their sizes
+  (measured in the background, with a spinner; Refresh) and "Open folder" (bridge `cache_folders`); no delete button
+  on purpose (the user deletes them). The environment box says what its spinner waits for after "ready": env_verify.
+- Short and direct: as small as its content. Two tabs: "Installation" (`HomePanel(null)`: only the BiaPy version
+  and the environment box, no welcome, links or shortcuts) and "Apply model", disabled until the
+  environment is "ok" and supported, then shown. The environment state is `gui/EnvMonitor`, shared by both windows
+  (`MainPanel`'s env methods delegate to it): installing in one updates the other. `EnvMonitor.addListener` sends the
+  last state at once: the check runs once per Fiji session, so a window opened later would stay empty otherwise.
+- Steps: 1 model, 2 image, 3 outputs, 4 device, 5 output info. No blank space: every text says something from the
+  start ("No model selected yet.", one line with the image and whether the model takes it, red if not; keep these
+  messages short). Step 3 is a two-column grid with short labels (details in Step 5); the window fits its height when
+  a model is described (the previous outputs stay, disabled, meanwhile). The progress bar, with what is being done, shares the row of
+  the buttons. Step 1, the device and Apply are disabled while a model is described or runs, and the image while it is
+  applied; Cancel stops it (`PythonBridge.cancel` also stops a
+  command waiting for the server, e.g. behind a zoo search). Selecting a zoo model stops a search still running.
+- Step 1, the model, in two tabs: "Checkpoint file" (a `.pth`; `.safetensors` have no configuration) or "BioImage
+  Model Zoo", a zoo model chosen in
+  `gui/ZooModelsDialog` (the search of every workflow and dimensions, grouped by workflow, dimensions and channels;
+  kept for the Fiji session). The list of models is `gui/ModelList`, shared with the wizard's zoo model question.
+- Zoo search cache (both searches): `<Fiji>/biapy/cache/bmz_models.json` (~100 KB), the core's
+  `bmz_search.CompatibilityCache` (`cache=`; `biapy_compat._CompatibilityCache` for 3.7.3): the checks of each model
+  by nickname + `last_modified` + search, dropped when BiaPy's version or blacklist change. A repeated search takes
+  ~1 s instead of ~40 s. Covers (scaled to the cards) and emoji are kept in `cache/covers` and `cache/emoji`.
+- Step 4, the device: one entry per GPU of the environment check (`EnvMonitor`), Apple's GPU and the CPU; a single
+  device (one image). Changing it does nothing until Apply.
+- Nothing is downloaded or loaded until Apply (user's request): choosing a model only describes it (bridge
+  `describe_model`, no GPU, no download: the `.pth`'s configuration, or the zoo search entry the dialog returns, whose
+  `imposed_vars` are what BiaPy sets from the model; also its size, from the zoo's file list, and whether a copy is
+  kept) to offer its outputs and check the image; Apply refuses an image the model can't take before anything runs,
+  with a full message naming the model (`problem(imp, info, name)`; Step 2's line is the short one).
+- Zoo models are downloaded by the plugin, not by bioimageio (which fetches each file whole into memory, so it can't
+  report progress, and checks every URL again on each load: ~12 s even when cached): core
+  `biapy.models.download_bmz_model` (+ `bmz_model_files`, `downloaded_bmz_model`, `BMZ_MODELS_CACHE`; copies in
+  `biapy_compat.zoo_downloads` for 3.7.3) streams the files, reporting `DOWNLOAD_PROGRESS:<done> <total>` (the status
+  shows the percentage, size and time left), and BiaPy loads the local description (builds in ~1 s instead of ~12 s).
+  "Keep a copy on this computer (X MB)" keeps it in the system's cache folder (`pooch.os_cache("biapy")/bmz_models/
+  <nickname>`, e.g. ~/.cache/biapy/bmz_models), after confirming the space; otherwise it goes to a temporary folder
+  deleted once the model is loaded. A kept copy is updated when its files change in the zoo and used offline;
+  `biapy_download.json` lists the files there (a canceled download resumes) and names the description once complete;
+  the bridge prints `DOWNLOAD_KEPT` then (the window shows it kept even if building the model fails after). Ticking
+  "keep" for a model loaded already downloads it then (no rebuild). Loading
+  the local copy writes nothing in bioimageio's cache (no duplicate). Python runs with `PYTHONUTF8=1`
+  (`PythonEnv.environment`): BiaPy 3.7.3 opens a local description without an encoding, and on Windows (cp1252) the
+  emoji of zoo descriptions failed (UnicodeDecodeError; fixed in the core with encoding="utf-8"). Then `load_model` (`BiaPy.load_workflow_from_model` on "gpu" +
+  `workflow.prepare_model()`) and it stays loaded in the server. `describe_model` copies the workflows' rule for
+  post-processing (median filter, synapse points); `load_model`'s answer wins. CUDA reads `CUDA_VISIBLE_DEVICES` once
+  per process, so a process that built a model on a device can't use another: `load_model` answers
+  `{"restart": true}` and the panel restarts the server (`PythonBridge.restartServer`, between commands). `apply_model` runs BiaPy's `predict(image,
+  return_prediction=False)`, which writes the usual test folders in a temporary folder (emptied each time).
+- The image goes to Python as a `.npy` file, (z, y, x, c) or (y, x, c), keeping 8/16-bit types (BiaPy's normalization
+  depends on them). A 2D model on a stack is applied to each slice; only the current frame of a time series is used.
+- Step 3, the outputs, depend on the workflow (`ApplyModelPanel.outputs`): raw output (`per_image`/`full_image`),
+  final predictions (instances, classes, points) and post-processed ones when the model post-processes. Points go to
+  a point selection on the image and a table; the class of classification to a table. Windows are named
+  "BiaPy <output> - <image>", with " (2)", " (3)"... after the output if Fiji has the title already
+  (`Results.uniqueTitle`). Semantic and instance
+  label images get Fiji's glasbey_on_dark LUT (`Results.labels`, display range 0-255).
+- Step 5, "Output info" (`ApplyModelPanel.outputsHtml`): what each output selected is and how to look at it, and how
+  the model is applied, for the model's workflow (`load_model` returns classes, the raw channels of instance
+  segmentation, detection thresholds; texts of `WorkflowInfoDialog.description`/`channelList`). The raw channels
+  come from the bridge's `_instance_outputs` (core `instance_channel_names`: counts of R, A, E_*, classes), shared with
+  the main window's Workflow info; every channel code BiaPy accepts needs a `WorkflowInfoDialog.CHANNELS` text (I and
+  We are not predicted). Zoo cards name the channels of sets that aren't the wizard's ("Foreground + Contour + Mask").
+- The bridge writes its lines with `sys.stdout.write`: once a model is loaded, BiaPy's `print` puts the time first.
+
 ## Wizard decisions
 
 - Question order: Problem description (dimensions, workflow, tracking), then Data (phases, clean targets, data
@@ -80,7 +151,7 @@ Exception: `RunPanel.mpsConfig` (Java) patches the config for Apple GPUs ("--gpu
   channels. Cellpose zoo models come in 1- and 3-channel versions.
 - The zoo model question shows "Model selected:" (text, not editable), a centered "Find models" button, and the list of
   models with a search field (magnifier icon) at its top right. The search filters the models found on the Java side
-  (`WizardPanel.matchesSearch`): words separated by spaces, all of which must be in the nickname, name or tags,
+  (`ModelList.matchesSearch`): words separated by spaces, all of which must be in the nickname, name or tags,
   ignoring case; empty shows them all.
 - The zoo model question can't be entered (Continue, Back or the question list) until "Phases" is answered and
   every folder asked is checked (`WizardPanel.mayEnter`). Changing a data folder resets the zoo model chosen.
@@ -126,6 +197,11 @@ Use the scratchpad for everything. Environment details are in the auto-memory (`
 - `InstanceFlowHarness <shots dir> <raw 2D images> <instance masks> <yaml dir>`: instance representation question.
 - `gui.PointsPreviewCheck` (no Python): point size answers and the targets drawn.
 - `gui.ResultsBoxCheck` (no Python): metrics of the results box (training log and `test_results_metrics.csv`).
+- `gui.ApplyModelHarness <shots dir> <2D instance seg .pth> <2D 1-channel image> <results/<job> of a 3D detection test>
+  <results/<job> of a classification test> <dir>`: "Apply model" with images in ImageJ's batch mode (loading, raw
+  output and instances, a stack slice by slice, an RGB image refused, points and class tables). It writes `.npy`
+  files and TIFFs of the same images in `<dir>`: compare them in Python (`np.load` vs `tifffile`, axes moved to
+  (z, y, x, c)). The results folders come from `BiaPy(...).predict(image, return_prediction=False)`.
 
 ## Build (after every requested change)
 

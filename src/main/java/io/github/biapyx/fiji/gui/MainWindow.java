@@ -36,7 +36,7 @@ public class MainWindow extends JFrame {
 		setMinimumSize(min);
 		setSize(min);
 		setLocationRelativeTo(IJ.getInstance());
-		panel.refreshEnvInfo();
+		EnvMonitor.checkOnce();
 	}
 
 	public MainPanel getMainPanel() {

@@ -39,14 +39,18 @@ public class ScreenshotHarness {
 	}
 
 	public static void save(Component c, File f) {
-		c.setSize(950, Integer.getInteger("shot.height", 650));
+		save(c, f, 950, Integer.getInteger("shot.height", 650));
+	}
+
+	public static void save(Component c, File f, int width, int height) {
+		c.setSize(width, height);
 		// Twice: headless components never run the revalidations queued by the GUI (e.g. after showing a question),
 		// which in a window lay out again the texts whose height depends on their final width
 		layout(c);
 		// The layouts cache the sizes of the first pass, computed before the texts knew their widths
 		invalidateAll(c);
 		layout(c);
-		BufferedImage img = new BufferedImage(950, Integer.getInteger("shot.height", 650), BufferedImage.TYPE_INT_RGB);
+		BufferedImage img = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
 		Graphics2D g = img.createGraphics();
 		g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 		c.printAll(g);

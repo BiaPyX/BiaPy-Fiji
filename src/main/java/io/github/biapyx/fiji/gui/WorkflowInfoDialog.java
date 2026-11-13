@@ -63,6 +63,8 @@ final class WorkflowInfoDialog {
 	private static final Map<String, String> CHANNELS = new LinkedHashMap<>();
 	static {
 		CHANNELS.put("F", "<b>Foreground</b>: how likely each pixel is to be inside an object (bright = object).");
+		CHANNELS.put("M", "<b>Mask</b>: how likely each pixel is to be inside an object or on its border (bright = "
+				+ "object): the whole objects, contours included, without telling them apart.");
 		CHANNELS.put("B", "<b>Background</b>: how likely each pixel is to be outside the objects (bright = background).");
 		CHANNELS.put("C", "<b>Contour</b>: how likely each pixel is to be on the border of an object; it separates "
 				+ "touching objects.");
@@ -96,6 +98,29 @@ final class WorkflowInfoDialog {
 		CHANNELS.put("E_seediness", "<b>Seediness</b>: how likely each pixel is to be a good center of its object.");
 		CHANNELS.put("class", "<b>Class</b>: one image per class, how likely each pixel is to be of that class (the "
 				+ "class of each object comes from them).");
+	}
+
+	/** What a workflow does, in plain words. */
+	static String description(String workflow) {
+		return DESCRIPTIONS.getOrDefault(workflow, "");
+	}
+
+	/** The channels of the raw prediction ({@code outputs} of the bridge's _instance_outputs), as a numbered list. */
+	static String channelList(JsonArray outputs) {
+		StringBuilder sb = new StringBuilder("<ol>");
+		int index = 1;
+		for (JsonElement e : outputs) {
+			JsonObject o = e.getAsJsonObject();
+			String ch = o.get("channel").getAsString();
+			int count = o.get("count").getAsInt();
+			String key = "P".equals(ch) && o.has("type") && !o.get("type").isJsonNull()
+					&& "skeleton".equals(o.get("type").getAsString()) ? "P_skeleton" : ch;
+			String range = count == 1 ? "Channel " + index : "Channels " + index + "-" + (index + count - 1);
+			sb.append("<li value='").append(index).append("'>").append(range).append(": ")
+					.append(CHANNELS.getOrDefault(key, "<b>" + esc(ch) + "</b>")).append("</li>");
+			index += count;
+		}
+		return sb.append("</ol>").toString();
 	}
 
 	/** Channels that are low inside the objects: their seeds and growth mask are the pixels below the threshold. */
@@ -274,21 +299,7 @@ final class WorkflowInfoDialog {
 		}
 		// The channels of the raw prediction, in order
 		sb.append("<p><i>per_image</i> has one channel per helper image the model predicts (in Fiji, move through "
-				+ "them with the C slider):</p><ol>");
-		int index = 1;
-		for (JsonElement e : inst.getAsJsonArray("outputs")) {
-			JsonObject o = e.getAsJsonObject();
-			String ch = o.get("channel").getAsString();
-			int count = o.get("count").getAsInt();
-			String key = "P".equals(ch) && o.has("type") && !o.get("type").isJsonNull()
-					&& "skeleton".equals(o.get("type").getAsString()) ? "P_skeleton" : ch;
-			String range = count == 1 ? "Channel " + index : "Channels " + index + "-" + (index + count - 1);
-			sb.append("<li value='").append(index).append("'>").append(range).append(": ")
-					.append(CHANNELS.getOrDefault(key, "<b>" + esc(ch) + "</b>")).append("</li>");
-			index += count;
-		}
-		sb.append("</ol>");
-
+				+ "them with the C slider):</p>").append(channelList(inst.getAsJsonArray("outputs")));
 		String creation = inst.get("creation").getAsString();
 		sb.append("<p class='muted'>The settings named below are under <i>PROBLEM.INSTANCE_SEG</i> in the configuration "
 				+ "file.</p>");
@@ -407,7 +418,7 @@ final class WorkflowInfoDialog {
 	}
 
 	/** The short name of a channel, e.g. "Foreground". */
-	private static String name(String ch) {
+	static String name(String ch) {
 		String d = CHANNELS.get(ch);
 		if (d == null) return ch;
 		Matcher m = Pattern.compile("<b>(.*?)</b>").matcher(d);

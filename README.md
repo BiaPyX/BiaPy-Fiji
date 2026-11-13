@@ -11,13 +11,18 @@ Fiji plugin to run [BiaPy](https://biapyx.github.io) deep-learning workflows. It
   shows the workflow, some of those images and the instance representation chosen.
 - **RUN WORKFLOW**: select a configuration, output folder, job name and device, run BiaPy and follow its output.
 
-Menu entry: `Plugins > BiaPy > Run BiaPy`.
+Menu entries:
+- `Plugins > BiaPy > Apply entire workflow`: the window above (train and test models on folders of images).
+- `Plugins > BiaPy > Apply model`: applies a model (a BiaPy `.pth` checkpoint or a BioImage Model Zoo model) to an
+  image open in Fiji and opens its results in Fiji (`gui/ApplyModelWindow.java`). Its first tab installs BiaPy, as
+  HOME does. The model stays loaded in the
+  Python server between images (bridge commands `describe_model`, `load_model` and `apply_model`, BiaPy's `predict()`); nothing is downloaded until Apply, and zoo models can be kept in the system's cache folder (biapy/bmz_models).
 
 ## Install
 
 In Fiji: `Help > Update...` > `Manage update sites`, check **BiaPy** (or, until it is in the list, `Add Unlisted Site`
 with the URL `https://sites.imagej.net/BiaPyX/`), `Apply and Close`, `Apply changes` and restart Fiji. Then, in
-`Plugins > BiaPy > Run BiaPy`, the HOME tab installs BiaPy.
+`Plugins > BiaPy > Apply entire workflow`, the HOME tab installs BiaPy.
 
 It works in both Fiji-Stable (Java 8) and Fiji-Latest (Java 21). The plugin is a single jar
 (`plugins/biapy-fiji-<version>.jar`): the libraries it uses (gson, snakeyaml, commons-compress, JNA) come with Fiji.
