@@ -11,7 +11,7 @@
 
 	<groupId>io.github.biapyx</groupId>
 	<artifactId>biapy-fiji</artifactId>
-	<version>0.1.0</version>
+	<version>0.1.1</version>
 
 	<name>BiaPy for Fiji</name>
 	<description>Fiji plugin to run BiaPy deep-learning bioimage analysis workflows</description>
