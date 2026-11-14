@@ -6,20 +6,10 @@ import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
-import java.io.BufferedOutputStream;
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.function.Consumer;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -37,13 +27,8 @@ import javax.swing.SwingUtilities;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
-import ij.IJ;
 import ij.ImagePlus;
-import ij.ImageStack;
 import ij.WindowManager;
-import ij.gui.PointRoi;
-import ij.measure.Calibration;
-import ij.measure.ResultsTable;
 import io.github.biapyx.fiji.BiaPyFiji;
 import io.github.biapyx.fiji.env.PythonBridge;
 import io.github.biapyx.fiji.env.PythonEnv;
@@ -90,15 +75,6 @@ public class ApplyModelPanel extends JPanel {
 		return o;
 	}
 
-	/** Folders of BiaPy's test results with each output, the first that exists is used. */
-	private static final Map<String, String[]> FOLDERS = new LinkedHashMap<>();
-	static {
-		FOLDERS.put("raw", new String[] { "per_image", "full_image" });
-		FOLDERS.put("final", new String[] { "per_image_instances", "full_image_instances", "per_image_binarized",
-				"full_image_binarized", "per_image_local_max_check_post_processing", "per_image_local_max_check" });
-		FOLDERS.put("post", new String[] { "per_image_post_processing", "full_image_post_processing" });
-	}
-
 	/** Step 1's tabs: a checkpoint file or a zoo model. */
 	private final javax.swing.JTabbedPane source = new javax.swing.JTabbedPane();
 	private static final int CHECKPOINT = 0, ZOO = 1;
@@ -128,7 +104,6 @@ public class ApplyModelPanel extends JPanel {
 	/** The search entry of the zoo model chosen: what it is, without downloading it. */
 	private JsonObject zooEntry;
 	private volatile PythonBridge running;
-	private static File workDir;
 	private JButton browse, find;
 
 	ApplyModelPanel() {
@@ -388,17 +363,8 @@ public class ApplyModelPanel extends JPanel {
 	 */
 	private JsonObject describe(String m) throws Exception {
 		if (isDescribed(m)) return loadedInfo;
-		if (!zooSelected()) {
-			if (!new File(m).isFile()) throw new PythonBridge.BridgeException("The checkpoint file does not exist: " + m);
-			if (!m.endsWith(".pth"))
-				throw new PythonBridge.BridgeException("Choose a .pth checkpoint: other files (e.g. .safetensors) don't hold "
-						+ "the configuration of the model.");
-		}
 		busy("Reading the model . . .");
-		JsonObject args = new JsonObject();
-		args.addProperty("model", m);
-		if (zooSelected() && zooEntry != null) args.add("zoo", zooEntry);
-		JsonObject info = call("describe_model", args);
+		JsonObject info = ModelApplier.describe(running, m, zooSelected() ? zooEntry : null, log(m));
 		JsonObject read = info;
 		described = m;
 		loadedInfo = info;
@@ -424,19 +390,9 @@ public class ApplyModelPanel extends JPanel {
 		// Loaded already, unless it is to be kept now
 		if (m.equals(loaded) && gpu.equals(loadedDevice) && !(fetch && zooSelected() && keep.isSelected())) return;
 		busy((fetch ? "Downloading" : "Loading") + " the model '" + modelName() + "'"
-				+ (fetch ? "" : " on " + deviceName(gpu)) + " . . .");
-		JsonObject args = new JsonObject();
-		args.addProperty("model", m);
-		args.addProperty("out_dir", workDir().getAbsolutePath());
-		args.addProperty("gpu", gpu);
-		args.addProperty("keep", zooSelected() && keep.isSelected());
+				+ (fetch ? "" : " on " + ModelApplier.deviceName(gpu)) + " . . .");
 		downloadStart = 0;
-		JsonObject info = call("load_model", args);
-		if (info.has("restart")) {
-			busy("Restarting BiaPy to use " + deviceName(gpu) + " . . .");
-			PythonBridge.restartServer();
-			info = call("load_model", args);
-		}
+		JsonObject info = ModelApplier.load(running, m, gpu, zooSelected() && keep.isSelected(), log(m));
 		loaded = m;
 		loadedDevice = gpu;
 		// The workflow's own answer (describe_model's post-processing rule is a copy of it)
@@ -445,10 +401,6 @@ public class ApplyModelPanel extends JPanel {
 			loadedInfo = built;
 			SwingUtilities.invokeLater(() -> showOutputs(built));
 		}
-	}
-
-	private static String deviceName(String gpu) {
-		return gpu.isEmpty() ? "the CPU" : gpu.equals("mps") ? "Apple's GPU" : "GPU " + gpu;
 	}
 
 	///////////////////
@@ -531,7 +483,7 @@ public class ApplyModelPanel extends JPanel {
 		return isDescribed(selectedModel());
 	}
 
-	private static int channels(ImagePlus imp) {
+	static int channels(ImagePlus imp) {
 		return imp.getType() == ImagePlus.COLOR_RGB ? 3 : imp.getNChannels();
 	}
 
@@ -620,7 +572,7 @@ public class ApplyModelPanel extends JPanel {
 		if (keys.isEmpty()) sb.append("<p>No output is selected in Step 3.</p>");
 		sb.append("<ul>");
 		for (String key : keys) {
-			String window = "<b>BiaPy " + Results.name(wf, key) + " - " + title + "</b>";
+			String window = "<b>BiaPy " + ModelApplier.Results.name(wf, key) + " - " + title + "</b>";
 			switch (wf + " " + key) {
 			case "SEMANTIC_SEG raw":
 				sb.append("<li>").append(window).append(": for each pixel, how likely it is to be of each class, from 0 to 1 ")
@@ -735,46 +687,14 @@ public class ApplyModelPanel extends JPanel {
 			if (late != null) throw new PythonBridge.BridgeException(late);
 			load(m);
 			// The outputs were just shown: the defaults are taken, as the checkboxes are
-			List<String> wanted = new ArrayList<>(keys);
-			if (wanted.isEmpty())
-				for (String[] o : outputs(info.get("workflow").getAsString(), info.get("post_processing").getAsBoolean()))
-					if (!o[2].isEmpty()) wanted.add(o[0]);
-			Results results = predict(imp, info, wanted);
-			SwingUtilities.invokeLater(() -> results.show(imp));
+			List<String> wanted = keys.isEmpty() ? ModelApplier.defaultOutputs(info) : keys;
+			ModelApplier.Results results = ModelApplier.apply(running, imp, info, loaded, loadedDevice, wanted, this::busy);
+			SwingUtilities.invokeLater(() -> {
+				results.show(imp);
+				ModelApplier.record(imp, m, wanted, loadedDevice);
+			});
 			return info;
 		}, "Done: the results are open in Fiji.");
-	}
-
-	/** Applies the model to the image (each slice of it for a 2D model), collecting the outputs wanted. */
-	private Results predict(ImagePlus imp, JsonObject info, List<String> keys) throws Exception {
-		boolean is3d = "3D".equals(info.get("ndim").getAsString());
-		int[] slices;
-		if (is3d) {
-			slices = new int[] { 0 }; // all the slices together
-		} else if (imp.getNSlices() > 1) {
-			slices = new int[imp.getNSlices()];
-			for (int z = 0; z < slices.length; z++) slices[z] = z + 1;
-		} else {
-			slices = new int[] { 1 };
-		}
-		Results results = new Results(info.get("workflow").getAsString(), keys, !is3d && slices.length > 1);
-		File npy = new File(workDir(), "image.npy");
-		for (int i = 0; i < slices.length; i++) {
-			String which = slices.length > 1 ? " (slice " + (i + 1) + " of " + slices.length + ")" : "";
-			busy("Sending '" + imp.getTitle() + "'" + which + " to BiaPy . . .");
-			writeNpy(npy, imp, slices[i], imp.getFrame());
-			busy("BiaPy is predicting '" + imp.getTitle() + "'" + which + " . . .");
-			JsonObject args = new JsonObject();
-			args.addProperty("model", loaded);
-			args.addProperty("gpu", loadedDevice);
-			args.addProperty("out_dir", workDir().getAbsolutePath());
-			args.addProperty("image", npy.getAbsolutePath());
-			File dir = new File(call("apply_model", args).get("results_dir").getAsString());
-			results.collect(dir, slices[i]);
-		}
-		npy.delete();
-		busy("Opening the results in Fiji . . .");
-		return results;
 	}
 
 	/** Runs {@code task} in the background, with the window busy; {@code done} is shown when it ends well. */
@@ -880,9 +800,10 @@ public class ApplyModelPanel extends JPanel {
 				+ left, true);
 	}
 
-	private JsonObject call(String command, JsonObject args) throws Exception {
-		String model = args.get("model").getAsString(), name = new File(model).getName();
-		return running.call(command, args, line -> {
+	/** What the bridge prints while it reads, downloads or loads the model {@code model}, shown in the window. */
+	private Consumer<String> log(String model) {
+		String name = new File(model).getName();
+		return line -> {
 			if (line.equals("DOWNLOAD_KEPT") && loadedInfo != null && loadedInfo.has("download")) {
 				JsonObject download = loadedInfo.getAsJsonObject("download");
 				download.addProperty("saved", true);
@@ -890,267 +811,13 @@ public class ApplyModelPanel extends JPanel {
 			} else if (line.startsWith("DOWNLOAD_PROGRESS:")) {
 				String[] v = line.substring("DOWNLOAD_PROGRESS:".length()).trim().split(" ");
 				SwingUtilities.invokeLater(() -> showDownload(Long.parseLong(v[0]), Long.parseLong(v[1])));
-			} else if (line.startsWith("Loading the model"))
+			} else if (line.startsWith("Loading the model") || line.startsWith("Restarting BiaPy")) {
 				busy(line.replace(model, "'" + name + "'"));
-		});
-	}
-
-	private static synchronized File workDir() throws IOException {
-		if (workDir == null) workDir = Files.createTempDirectory("biapy-apply-model").toFile();
-		return workDir;
+			}
+		};
 	}
 
 	static String plural(int n, String what) {
 		return n + " " + what + (n == 1 ? "" : "s");
-	}
-
-	/////////////////////////////////
-	// The image, as BiaPy takes it
-	/////////////////////////////////
-	/**
-	 * Writes the image as a NumPy file, (z, y, x, c) with {@code slice} 0 (all the slices of {@code frame}), otherwise
-	 * (y, x, c) for that slice (1-based). RGB images have 3 channels; 8- and 16-bit images keep their type, which BiaPy's
-	 * normalization depends on.
-	 */
-	static void writeNpy(File f, ImagePlus imp, int slice, int frame) throws IOException {
-		int w = imp.getWidth(), h = imp.getHeight(), c = channels(imp);
-		boolean rgb = imp.getType() == ImagePlus.COLOR_RGB;
-		int bytes = rgb ? 1 : imp.getBitDepth() / 8;
-		String descr = bytes == 1 ? "|u1" : bytes == 2 ? "<u2" : "<f4";
-		int[] zs;
-		if (slice == 0) {
-			zs = new int[imp.getNSlices()];
-			for (int z = 0; z < zs.length; z++) zs[z] = z + 1;
-		} else {
-			zs = new int[] { slice };
-		}
-		String shape = (slice == 0 ? zs.length + ", " : "") + h + ", " + w + ", " + c;
-		StringBuilder header = new StringBuilder("{'descr': '" + descr + "', 'fortran_order': False, 'shape': (" + shape + "), }");
-		while ((10 + header.length() + 1) % 64 != 0) header.append(' ');
-		header.append('\n');
-		ImageStack stack = imp.getStack();
-		try (OutputStream out = new BufferedOutputStream(new FileOutputStream(f), 1 << 20)) {
-			out.write(new byte[] { (byte) 0x93, 'N', 'U', 'M', 'P', 'Y', 1, 0, (byte) (header.length() & 0xff),
-					(byte) (header.length() >> 8) });
-			out.write(header.toString().getBytes(StandardCharsets.US_ASCII));
-			ByteBuffer row = ByteBuffer.allocate(w * c * bytes).order(ByteOrder.LITTLE_ENDIAN);
-			for (int z : zs) {
-				Object[] pixels = new Object[rgb ? 1 : c];
-				for (int ch = 0; ch < pixels.length; ch++)
-					pixels[ch] = stack.getProcessor(imp.getStackIndex(ch + 1, z, frame)).getPixels();
-				for (int y = 0; y < h; y++) {
-					row.clear();
-					for (int x = 0; x < w; x++) {
-						int i = y * w + x;
-						if (rgb) {
-							int v = ((int[]) pixels[0])[i];
-							row.put((byte) (v >> 16)).put((byte) (v >> 8)).put((byte) v);
-						} else {
-							for (int ch = 0; ch < c; ch++) {
-								Object p = pixels[ch];
-								if (bytes == 1) row.put(((byte[]) p)[i]);
-								else if (bytes == 2) row.putShort(((short[]) p)[i]);
-								else row.putFloat(((float[]) p)[i]);
-							}
-						}
-					}
-					out.write(row.array());
-				}
-			}
-		}
-	}
-
-	/////////////////////////////////
-	// The results, opened in Fiji
-	/////////////////////////////////
-	/** The outputs wanted of every slice the model was applied to, as BiaPy wrote them in its results folder. */
-	static final class Results {
-		private final String workflow;
-		private final List<String> keys;
-		/** A 2D model applied to each slice: the images of each output are stacked. */
-		private final boolean perSlice;
-		private final Map<String, List<ImagePlus>> images = new LinkedHashMap<>();
-		/** Points detected: (slice of the image, 1-based, or 0 for a 3D model), z, y, x, probability (NaN if none). */
-		private final List<double[]> points = new ArrayList<>();
-		private final List<String[]> classes = new ArrayList<>();
-		private final List<String> missing = new ArrayList<>();
-
-		Results(String workflow, List<String> keys, boolean perSlice) {
-			this.workflow = workflow;
-			this.keys = keys;
-			this.perSlice = perSlice;
-		}
-
-		void collect(File dir, int slice) throws IOException {
-			if ("CLASSIFICATION".equals(workflow)) {
-				List<String> lines = Files.readAllLines(new File(dir, "predictions.csv").toPath(), StandardCharsets.UTF_8);
-				classes.add(new String[] { String.valueOf(slice), lines.get(1).substring(lines.get(1).lastIndexOf(',') + 1) });
-				return;
-			}
-			for (String key : keys) {
-				File folder = null;
-				for (String name : FOLDERS.get(key))
-					if (new File(dir, name).isDirectory()) {
-						folder = new File(dir, name);
-						break;
-					}
-				if (folder == null) {
-					if (!missing.contains(key)) missing.add(key);
-					continue;
-				}
-				if ("DETECTION".equals(workflow) && "final".equals(key)) {
-					readPoints(new File(folder, "in_memory_image_points.csv"), slice);
-					continue;
-				}
-				ImagePlus out = IJ.openImage(new File(folder, "in_memory_image.tif").getAbsolutePath());
-				if (out == null) throw new IOException("Could not open " + new File(folder, "in_memory_image.tif"));
-				images.computeIfAbsent(key, k -> new ArrayList<>()).add(out);
-			}
-		}
-
-		/** The CSV of points of BiaPy: columns axis-0, axis-1 (and axis-2 in 3D), from Z to X. */
-		private void readPoints(File csv, int slice) throws IOException {
-			if (!csv.isFile()) return; // no points
-			List<String> lines = Files.readAllLines(csv.toPath(), StandardCharsets.UTF_8);
-			List<String> header = Arrays.asList(lines.get(0).split(","));
-			int a0 = header.indexOf("axis-0"), a1 = header.indexOf("axis-1"), a2 = header.indexOf("axis-2"),
-					prob = header.indexOf("probability");
-			for (String line : lines.subList(1, lines.size())) {
-				if (line.trim().isEmpty()) continue;
-				String[] v = line.split(",");
-				double z = a2 >= 0 ? Double.parseDouble(v[a0]) : 0;
-				double y = Double.parseDouble(v[a2 >= 0 ? a1 : a0]), x = Double.parseDouble(v[a2 >= 0 ? a2 : a1]);
-				points.add(new double[] { slice, z, y, x, prob >= 0 ? Double.parseDouble(v[prob]) : Double.NaN });
-			}
-		}
-
-		/** Opens the outputs in Fiji (call it on the EDT). */
-		void show(ImagePlus source) {
-			String title = source.getTitle().replaceFirst("\\.[A-Za-z0-9]+$", "");
-			for (ImagePlus out : images(source)) out.show();
-			if (keys.contains("final") && "DETECTION".equals(workflow)) showPoints(source, title);
-			if (!classes.isEmpty()) classTable(source).show(uniqueTitle("BiaPy class", title));
-			if (!missing.isEmpty())
-				IJ.log("[BiaPy] The model did not give these outputs: " + String.join(", ", missing));
-		}
-
-		/** The output images, named after {@code source} and with its calibration. */
-		List<ImagePlus> images(ImagePlus source) {
-			String title = source.getTitle().replaceFirst("\\.[A-Za-z0-9]+$", "");
-			List<ImagePlus> shown = new ArrayList<>();
-			for (Map.Entry<String, List<ImagePlus>> e : images.entrySet()) {
-				ImagePlus out = perSlice ? stack(e.getValue()) : e.getValue().get(0);
-				out.setTitle(uniqueTitle("BiaPy " + name(workflow, e.getKey()), title));
-				Calibration cal = source.getCalibration().copy();
-				// e.g. super-resolution: the pixels are smaller
-				cal.pixelWidth *= (double) source.getWidth() / out.getWidth();
-				cal.pixelHeight *= (double) source.getHeight() / out.getHeight();
-				out.setCalibration(cal);
-				if (!"raw".equals(e.getKey()) && ("INSTANCE_SEG".equals(workflow) || "SEMANTIC_SEG".equals(workflow))) labels(out);
-				shown.add(out);
-			}
-			return shown;
-		}
-
-		ResultsTable classTable(ImagePlus source) {
-			ResultsTable rt = new ResultsTable();
-			for (String[] c : classes) {
-				rt.incrementCounter();
-				rt.addValue("Image", source.getTitle());
-				if (perSlice) rt.addValue("Slice", c[0]);
-				rt.addValue("Class", c[1]);
-			}
-			return rt;
-		}
-
-		/**
-		 * "&lt;what&gt; - &lt;image&gt;", or with " (2)", " (3)"... after what if a window of Fiji has that title already, as
-		 * Fiji names duplicates.
-		 */
-		static String uniqueTitle(String what, String image) {
-			java.util.Set<String> taken = new java.util.HashSet<>();
-			for (String[] titles : new String[][] { WindowManager.getImageTitles(), WindowManager.getNonImageTitles() })
-				if (titles != null) taken.addAll(Arrays.asList(titles));
-			String title = what + " - " + image;
-			for (int n = 2; taken.contains(title); n++) title = what + " (" + n + ") - " + image;
-			return title;
-		}
-
-		/** What an output's window shows, the start of its title. */
-		static String name(String workflow, String key) {
-			if ("raw".equals(key)) return "raw output";
-			if ("post".equals(key)) return "post-processed";
-			return "INSTANCE_SEG".equals(workflow) ? "instances" : "prediction";
-		}
-
-		/** The 2D outputs of each slice, as a stack (a hyperstack if they have channels). */
-		private static ImagePlus stack(List<ImagePlus> slices) {
-			ImagePlus first = slices.get(0);
-			int c = first.getStackSize();
-			ImageStack stack = new ImageStack(first.getWidth(), first.getHeight());
-			for (ImagePlus s : slices)
-				for (int ch = 1; ch <= c; ch++) stack.addSlice(s.getStack().getProcessor(ch));
-			ImagePlus out = new ImagePlus("", stack);
-			out.setDimensions(c, slices.size(), 1);
-			if (c > 1) out.setOpenAsHyperStack(true);
-			return out;
-		}
-
-		/**
-		 * A label image (classes or instances) with the "glasbey on dark" lookup table: label n in color n, the
-		 * background black. Above 255 instances the colors are spread over all the labels.
-		 */
-		static void labels(ImagePlus imp) {
-			imp.setLut(GLASBEY);
-			double max = 0;
-			for (int i = 1; i <= imp.getStackSize(); i++) max = Math.max(max, imp.getStack().getProcessor(i).getStatistics().max);
-			imp.setDisplayRange(0, Math.max(255, max));
-		}
-
-		static final ij.process.LUT GLASBEY = glasbey();
-
-		/** Fiji's glasbey_on_dark, or distinct colors like it where Fiji's lookup tables are not found. */
-		private static ij.process.LUT glasbey() {
-			String luts = IJ.getDirectory("luts");
-			File file = luts == null ? null : new File(luts, "glasbey_on_dark.lut");
-			ij.process.LUT lut = file != null && file.isFile() ? ij.plugin.LutLoader.openLut(file.getPath()) : null;
-			if (lut != null) return lut;
-			byte[] r = new byte[256], g = new byte[256], b = new byte[256];
-			for (int i = 1; i < 256; i++) {
-				int rgb = Color.HSBtoRGB((i * 0.618034f) % 1f, 0.55f + 0.45f * ((i * 7) % 3) / 2f, 0.7f + 0.3f * (i % 2));
-				r[i] = (byte) (rgb >> 16);
-				g[i] = (byte) (rgb >> 8);
-				b[i] = (byte) rgb;
-			}
-			return new ij.process.LUT(r, g, b);
-		}
-
-		/** The points detected, on the image (a point selection) and in a table. */
-		private void showPoints(ImagePlus source, String title) {
-			if (points.isEmpty()) {
-				IJ.showMessage("BiaPy", "No points were detected in " + source.getTitle() + ".");
-				return;
-			}
-			pointsTable(source).show(uniqueTitle("BiaPy points", title));
-		}
-
-		/** The table of the points detected; they are also set as a point selection on {@code source}. */
-		ResultsTable pointsTable(ImagePlus source) {
-			ResultsTable rt = new ResultsTable();
-			PointRoi roi = new PointRoi();
-			boolean is3d = points.stream().anyMatch(p -> p[0] == 0) && source.getNSlices() > 1;
-			for (double[] p : points) {
-				int z = p[0] > 0 ? (int) p[0] : (int) Math.round(p[1]) + 1;
-				int position = source.getStackSize() > 1 ? source.getStackIndex(source.getChannel(), z, source.getFrame()) : 0;
-				roi.addPoint(p[3], p[2], position);
-				rt.incrementCounter();
-				rt.addValue("X", p[3]);
-				rt.addValue("Y", p[2]);
-				if (is3d || perSlice) rt.addValue("Z", z - 1);
-				if (!Double.isNaN(p[4])) rt.addValue("Probability", p[4]);
-			}
-			if (!points.isEmpty()) source.setRoi(roi);
-			return rt;
-		}
 	}
 }

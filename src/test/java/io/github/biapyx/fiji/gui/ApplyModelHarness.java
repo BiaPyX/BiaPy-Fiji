@@ -25,8 +25,9 @@ import io.github.biapyx.fiji.ScreenshotHarness;
  * "Apply model" with a real model, headless (images in ImageJ's batch mode):
  * {@code ApplyModelHarness <shots dir> <2D instance segmentation .pth> <2D 1-channel image> <results of a 3D detection
  * test> <results of a classification test> <dir for the .npy checks>}.
- * The last three come from BiaPy's predict(image, return_prediction=False) (folders "results/<job>"); the .npy files
- * written in the last one are checked by the Python side of the test.
+ * The results of detection and classification come from BiaPy's predict(image, return_prediction=False) (folders
+ * "results/<job>"), given to the window as apply_model returns them; the .npy files written in the last one are checked
+ * by the Python side of the test.
  */
 public class ApplyModelHarness {
 	static void check(boolean ok, String what) {
@@ -263,25 +264,47 @@ public class ApplyModelHarness {
 
 		// Detection (3D) and classification results of BiaPy, as they are opened
 		ImagePlus vol = IJ.createImage("vol", "8-bit black", 64, 64, 16);
-		ApplyModelPanel.Results det = new ApplyModelPanel.Results("DETECTION", Arrays.asList("final"), false);
-		det.collect(new File(a[3]), 0);
+		ModelApplier.Results det = new ModelApplier.Results("DETECTION", Arrays.asList("final"), false);
+		java.util.List<String> csv = java.nio.file.Files.readAllLines(
+				new File(a[3], "per_image_local_max_check_post_processing/in_memory_image_points.csv").toPath());
+		JsonObject table = new JsonObject(), detOut = new JsonObject();
+		com.google.gson.JsonArray columns = new com.google.gson.JsonArray(), rows = new com.google.gson.JsonArray();
+		for (String c : csv.get(0).split(",")) columns.add(c);
+		for (String line : csv.subList(1, csv.size())) {
+			com.google.gson.JsonArray row = new com.google.gson.JsonArray();
+			for (String v : line.split(",")) row.add(Double.parseDouble(v));
+			rows.add(row);
+		}
+		table.add("columns", columns);
+		table.add("rows", rows);
+		detOut.add("final", table);
+		det.collect(detOut, 0);
 		ResultsTable pts = det.pointsTable(vol);
-		int csvRows = java.nio.file.Files.readAllLines(new File(a[3], "per_image_local_max_check_post_processing/in_memory_image_points.csv")
-				.toPath()).size() - 1;
+		int csvRows = csv.size() - 1;
 		check(pts.size() == csvRows && vol.getRoi() instanceof PointRoi && ((PointRoi) vol.getRoi()).size() == csvRows,
 				"detection: " + csvRows + " points in the table and as a selection");
 		check(pts.getColumnIndex("Z") >= 0, "3D points have their Z");
-		ApplyModelPanel.Results cls = new ApplyModelPanel.Results("CLASSIFICATION", Arrays.asList("final"), false);
-		cls.collect(new File(a[4]), 1);
+		ModelApplier.Results cls = new ModelApplier.Results("CLASSIFICATION", Arrays.asList("final"), false);
+		java.util.List<String> pred = java.nio.file.Files.readAllLines(new File(a[4], "predictions.csv").toPath());
+		JsonObject value = new JsonObject(), clsOut = new JsonObject();
+		value.addProperty("value", Integer.parseInt(pred.get(1).substring(pred.get(1).lastIndexOf(',') + 1).trim()));
+		clsOut.add("final", value);
+		cls.collect(clsOut, 1);
 		check(cls.classTable(img).size() == 1 && !cls.classTable(img).getStringValue("Class", 0).isEmpty(),
 				"classification: the class in a table");
 
 		// The images as BiaPy takes them (checked in Python)
 		ImagePlus hyper = IJ.createImage("hyper", "16-bit ramp", 20, 10, 2, 3, 1);
 		for (int i = 1; i <= hyper.getStackSize(); i++) hyper.getStack().getProcessor(i).add(i * 1000);
-		ApplyModelPanel.writeNpy(new File(a[5], "hyper_all.npy"), hyper, 0, 1);
-		ApplyModelPanel.writeNpy(new File(a[5], "hyper_z2.npy"), hyper, 2, 1);
-		ApplyModelPanel.writeNpy(new File(a[5], "rgb.npy"), rgb, 1, 1);
+		ModelApplier.writeNpy(new File(a[5], "hyper_all.npy"), hyper, 0, 1);
+		ModelApplier.writeNpy(new File(a[5], "hyper_z2.npy"), hyper, 2, 1);
+		ModelApplier.writeNpy(new File(a[5], "rgb.npy"), rgb, 1, 1);
+		// The outputs are read back as they were written: (z, y, x, c) -> c channels, z slices
+		ImagePlus back = ModelApplier.readNpy(new File(a[5], "hyper_all.npy"));
+		boolean same = back.getNChannels() == 2 && back.getNSlices() == 3 && back.getBitDepth() == 16;
+		for (int i = 1; same && i <= hyper.getStackSize(); i++)
+			same = java.util.Arrays.equals((short[]) hyper.getStack().getPixels(i), (short[]) back.getStack().getPixels(i));
+		check(same, "readNpy reads back what writeNpy wrote");
 		IJ.saveAsTiff(hyper, new File(a[5], "hyper.tif").getAbsolutePath());
 		IJ.saveAsTiff(rgb, new File(a[5], "rgb.tif").getAbsolutePath());
 		System.out.println("ALL OK");

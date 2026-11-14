@@ -17,6 +17,14 @@ Menu entries:
   image open in Fiji and opens its results in Fiji (`gui/ApplyModelWindow.java`). Its first tab installs BiaPy, as
   HOME does. The model stays loaded in the
   Python server between images (bridge commands `describe_model`, `load_model` and `apply_model`, BiaPy's `predict()`); nothing is downloaded until Apply, and zoo models can be kept in the system's cache folder (biapy/bmz_models).
+  It can also be run from macros and scripts, without the window, on the current image (`gui/ModelApplier.java`), and
+  applying a model in the window records this command (`Plugins > Macros > Record...`):
+  ```
+  run("Apply model", "model=[/path/to/model.pth] outputs=[final post] device=0");
+  ```
+  `model` is a `.pth` checkpoint or a zoo nickname (e.g. `model=affable-shark`). `outputs` (`raw`, `final`, `post`)
+  and `device` (a GPU number, `mps` or `cpu`) are optional: by default, the outputs the window opens and the device
+  used already (else the GPU with most free memory). The outputs open as in the window.
 
 ## Install
 

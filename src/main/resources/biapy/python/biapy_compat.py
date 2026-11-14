@@ -277,12 +277,58 @@ def check_folder(*args, train_channels=None, **kwargs):
     }
 
 
+# Folders of a test's results with each output of BiaPy.predict, the first that exists is used
+_OUTPUT_FOLDERS = {
+    "raw": ["per_image", "full_image"],
+    "final": ["per_image_instances", "full_image_instances", "per_image_binarized", "full_image_binarized",
+              "per_image_local_max_check_post_processing", "per_image_local_max_check"],
+    "post": ["per_image_post_processing", "full_image_post_processing"],
+}
+
+
 def predict(biapy, image, **kwargs):
     """BiaPy.predict (same arguments and result), with the fixes it needs."""
-    # A second predict() on the same instance failed in classification: the predictions of the previous one were kept
+    import inspect
+
     if needed(NEXT_RELEASE):
+        # A second predict() on the same instance failed in classification: the predictions of the previous one were
+        # kept
         biapy.workflow.all_pred, biapy.workflow.all_gt, biapy.workflow.metrics_per_test_file = [], [], []
+        # No "output" argument: the outputs are read from the files the test writes (its results folder is cleared
+        # first, so it only has this image's; TEST.SAVE_MODEL_RAW_OUTPUT must be on for "raw")
+        if "output" in kwargs and "output" not in inspect.signature(biapy.predict).parameters:
+            return _outputs_from_files(biapy, image, kwargs.pop("output"), **kwargs)
     return biapy.predict(image, **kwargs)
+
+
+def _outputs_from_files(biapy, image, output, **kwargs):
+    import os
+    import shutil
+
+    import pandas as pd
+
+    from biapy.data.data_manipulation import read_img_as_ndarray
+
+    results = biapy.cfg.PATHS.RESULT_DIR.PATH
+    shutil.rmtree(results, ignore_errors=True)
+    biapy.predict(image, **dict(kwargs, return_prediction=False))
+    workflow = biapy.cfg.PROBLEM.TYPE
+    produced = {}
+    if workflow == "CLASSIFICATION":
+        produced["final"] = int(pd.read_csv(os.path.join(results, "predictions.csv"))["class"].iloc[0])
+    for key, names in _OUTPUT_FOLDERS.items():
+        folder = next((os.path.join(results, n) for n in names if os.path.isdir(os.path.join(results, n))), None)
+        if folder is None:
+            continue
+        if workflow == "DETECTION" and key == "final":
+            csv = os.path.join(folder, "in_memory_image_points.csv")
+            produced[key] = pd.read_csv(csv) if os.path.isfile(csv) else pd.DataFrame()  # no file: no points
+        else:
+            produced[key] = read_img_as_ndarray(os.path.join(folder, "in_memory_image.tif"),
+                                                is_3d=biapy.cfg.PROBLEM.NDIM == "3D")
+    if isinstance(output, str):
+        return produced[output]
+    return {n: produced[n] for n in output if n in produced}
 
 
 def zoo_downloads():

@@ -64,6 +64,12 @@ Exception: `RunPanel.mpsConfig` (Java) patches the config for Apple GPUs ("--gpu
 
 `Plugins > BiaPy > Apply model` (`ApplyModel_Plugin`, `gui/ApplyModelWindow` with `gui/ApplyModelPanel`) applies a
 model to an image open in Fiji; `Plugins > BiaPy > Apply entire workflow` is the main window.
+- The work without UI (describe, load, apply, the `.npy` files, `Results`) is `gui/ModelApplier`, shared by the window
+  and the macro command: `run("Apply model", "model=[...] outputs=[final post] device=0")` (`ApplyModel_Plugin` runs
+  `ModelApplier.runMacro` when there are macro options; `outputs` and `device` optional) on the current image. A
+  checkpoint is checked against the image before loading; a zoo model only once loaded (no search entry in a macro).
+  Applying in the window records the command (IJ1 `Recorder.setCommand`/`recordOption`/`saveCommand`, after a
+  `selectImage`); opening the window is not recorded.
 - "Downloads" (broom icon: a link card in the main window's home, in place of Notebooks, and centered under the
   environment box of Apply model's Installation tab) opens `gui/ModelFoldersDialog`: BiaPy's folder (zoo models kept by
   Apply model) and bioimageio's (zoo models of the jobs, which BiaPy downloads through bioimageio), their sizes
@@ -114,14 +120,17 @@ model to an image open in Fiji; `Plugins > BiaPy > Apply entire workflow` is the
   post-processing (median filter, synapse points); `load_model`'s answer wins. CUDA reads `CUDA_VISIBLE_DEVICES` once
   per process, so a process that built a model on a device can't use another: `load_model` answers
   `{"restart": true}` and the panel restarts the server (`PythonBridge.restartServer`, between commands). `apply_model` runs BiaPy's `predict(image,
-  return_prediction=False)`, which writes the usual test folders in a temporary folder (emptied each time).
+  output=[...])` (in memory; `biapy_compat.predict` reads them from the test's folders for 3.7.3) and returns each
+  output: an image as a `.npy` next to the input, (z, y, x, c) in C order (`ModelApplier.readNpy`: uint8/bool 8-bit,
+  uint16 16-bit, other numbers 32-bit), the detection points as a table (`columns`, `rows`) and the class as a value.
 - The image goes to Python as a `.npy` file, (z, y, x, c) or (y, x, c), keeping 8/16-bit types (BiaPy's normalization
   depends on them). A 2D model on a stack is applied to each slice; only the current frame of a time series is used.
-- Step 3, the outputs, depend on the workflow (`ApplyModelPanel.outputs`): raw output (`per_image`/`full_image`),
-  final predictions (instances, classes, points) and post-processed ones when the model post-processes. Points go to
+- Step 3, the outputs, depend on the workflow (`ApplyModelPanel.outputs`): `raw` (the model's output), `final`
+  (instances, classes, points, class) and `post` (post-processed) when the model post-processes: the names of the
+  core's `predict(output=...)`. Points go to
   a point selection on the image and a table; the class of classification to a table. Windows are named
   "BiaPy <output> - <image>", with " (2)", " (3)"... after the output if Fiji has the title already
-  (`Results.uniqueTitle`). Semantic and instance
+  (`ModelApplier.Results.uniqueTitle`). Semantic and instance
   label images get Fiji's glasbey_on_dark LUT (`Results.labels`, display range 0-255).
 - Step 5, "Output info" (`ApplyModelPanel.outputsHtml`): what each output selected is and how to look at it, and how
   the model is applied, for the model's workflow (`load_model` returns classes, the raw channels of instance
@@ -129,7 +138,8 @@ model to an image open in Fiji; `Plugins > BiaPy > Apply entire workflow` is the
   come from the bridge's `_instance_outputs` (core `instance_channel_names`: counts of R, A, E_*, classes), shared with
   the main window's Workflow info; every channel code BiaPy accepts needs a `WorkflowInfoDialog.CHANNELS` text (I and
   We are not predicted). Zoo cards name the channels of sets that aren't the wizard's ("Foreground + Contour + Mask").
-- The bridge writes its lines with `sys.stdout.write`: once a model is loaded, BiaPy's `print` puts the time first.
+- The bridge writes its lines with `sys.stdout.write`: once a model is loaded, BiaPy 3.7.3's `print` puts the time
+  first in every print of the process (later versions only in BiaPy's own output).
 
 ## Wizard decisions
 
@@ -201,7 +211,8 @@ Use the scratchpad for everything. Environment details are in the auto-memory (`
   <results/<job> of a classification test> <dir>`: "Apply model" with images in ImageJ's batch mode (loading, raw
   output and instances, a stack slice by slice, an RGB image refused, points and class tables). It writes `.npy`
   files and TIFFs of the same images in `<dir>`: compare them in Python (`np.load` vs `tifffile`, axes moved to
-  (z, y, x, c)). The results folders come from `BiaPy(...).predict(image, return_prediction=False)`.
+  (z, y, x, c)); it also reads one back with `readNpy`. The detection and classification results folders come from
+  `BiaPy(...).predict(image, return_prediction=False)` and are given to `Results` as `apply_model` returns them.
 
 ## Build (after every requested change)
 

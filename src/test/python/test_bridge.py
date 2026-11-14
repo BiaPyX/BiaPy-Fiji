@@ -8,6 +8,7 @@ import glob
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from types import SimpleNamespace
@@ -208,6 +209,66 @@ def test_apply_model_device_and_channels(monkeypatch):
     d = bridge.cmd_describe_model({"model": "x", "zoo": zoo})
     assert (d["channels"], d["ndim"], d["post_processing"]) == (3, "3D", False)
     assert [o["channel"] for o in d["instance_outputs"]] == ["F", "C", "M"]
+
+
+def test_apply_model_outputs(monkeypatch, tmp_path):
+    """The outputs of predict() as the Java side reads them; read from the test's files with BiaPy versions without them."""
+    pytest.importorskip("biapy.wizard")
+    import pandas as pd
+    import tifffile
+
+    import biapy
+
+    sys.path.insert(0, PYTHON_DIR)
+    import biapy_compat
+    import biapy_fiji_bridge as bridge
+
+    image = str(tmp_path / "image.npy")
+    np.save(image, np.zeros((4, 5, 1), np.uint8))
+    points = pd.DataFrame({"pred_id": [1], "axis-0": [2.0], "axis-1": [3.0], "probability": [float("nan")]})
+    labels = np.arange(20, dtype=np.int64).reshape(4, 5)
+    asked = {}
+
+    def predict(img, output=None, **kw):  # a BiaPy whose predict() returns the outputs
+        asked["output"] = output
+        return {"raw": np.ones((4, 5, 2), np.float32).T.copy().T, "final": labels, "post": 3, "points": points}
+
+    cfg = SimpleNamespace(PROBLEM=SimpleNamespace(NDIM="2D", TYPE="INSTANCE_SEG"))
+    monkeypatch.setattr(bridge, "_model", lambda args: SimpleNamespace(cfg=cfg, predict=predict))
+    monkeypatch.setattr(biapy, "__version__", biapy_compat.NEXT_RELEASE)
+    res = json.loads(json.dumps(bridge.cmd_apply_model({"image": image, "outputs": ["raw", "final"]})))
+    assert asked["output"] == ["raw", "final"]
+    raw, final = np.load(res["raw"]["npy"]), np.load(res["final"]["npy"])
+    assert raw.shape == (1, 4, 5, 2) and raw.flags.c_contiguous  # (z, y, x, c), C order as Java reads it
+    assert final.shape == (1, 4, 5, 1) and (final[0, ..., 0] == labels).all()
+    assert res["post"] == {"value": 3}
+    assert res["points"]["columns"] == ["pred_id", "axis-0", "axis-1", "probability"]
+    assert res["points"]["rows"] == [[1, 2.0, 3.0, None]]
+
+    # 3.7.3: predict() has no "output"; the outputs come from the folders of the test
+    results = tmp_path / "results"
+
+    def old_predict(img, gt=None, return_prediction=True, verbose=False):
+        assert not return_prediction
+        if old.cfg.PROBLEM.TYPE == "DETECTION":
+            os.makedirs(results / "per_image_local_max_check")
+            points.to_csv(results / "per_image_local_max_check" / "in_memory_image_points.csv", index=False)
+            return
+        for folder, data in (("per_image", np.ones((4, 5, 2), np.float32)), ("per_image_instances", labels[..., None])):
+            os.makedirs(results / folder)
+            tifffile.imwrite(str(results / folder / "in_memory_image.tif"), data, photometric="minisblack")
+
+    os.makedirs(results / "per_image")  # from the previous image: removed first
+    old = SimpleNamespace(predict=old_predict, workflow=SimpleNamespace(),
+                          cfg=SimpleNamespace(PROBLEM=SimpleNamespace(NDIM="2D", TYPE="INSTANCE_SEG"),
+                                              PATHS=SimpleNamespace(RESULT_DIR=SimpleNamespace(PATH=str(results)))))
+    monkeypatch.setattr(biapy, "__version__", "3.7.3")
+    outs = biapy_compat.predict(old, np.zeros((4, 5, 1)), output=["raw", "final", "post"])
+    assert sorted(outs) == ["final", "raw"] and outs["raw"].shape == (4, 5, 2)
+    assert (outs["final"][..., 0] == labels).all()
+    old.cfg.PROBLEM.TYPE = "DETECTION"
+    shutil.rmtree(results)
+    assert biapy_compat.predict(old, np.zeros((4, 5, 1)), output="final").equals(points)
 
 
 def test_compat_zoo_downloads(monkeypatch, tmp_path):

@@ -446,11 +446,12 @@ def _model(args, source=None):
     if not hasattr(BiaPy, "predict"):
         raise RuntimeError("The BiaPy version installed can't apply a model to an image open in Fiji. Install a newer "
                            "BiaPy version in the 'Installation' tab.")
-    # "gpu": the device chosen (a GPU number, "mps" or "" for the CPU); without it, the GPU with most free memory
+    # "gpu": the device chosen (a GPU number, "mps" or "" for the CPU); without it, the one used already or the GPU
+    # with most free memory
     key = (args["model"], args["out_dir"], args.get("gpu"))
     if _applied["key"] != key:
         _applied["key"], _applied["biapy"] = None, None
-        device = args["gpu"] if "gpu" in args else _device()
+        device = args["gpu"] if "gpu" in args else _applied["device"] if _applied["device"] is not None else _device()
         if _applied["device"] not in (None, device):
             raise RuntimeError("This Python process already used another device: restart it to use {}.".format(
                 _device_name(device)))
@@ -598,21 +599,33 @@ def cmd_cache_folders(args):
 
 def cmd_apply_model(args):
     """
-    Applies the model of cmd_load_model to an image (a .npy file, "image": (y, x, c) in 2D, (z, y, x, c) in 3D). Its
-    results are in the usual folders of a test (raw output in per_image, instances in per_image_instances...) of the
-    "results_dir" returned, which only holds this image's.
+    Applies the model of cmd_load_model to an image (a .npy file, "image": (y, x, c) in 2D, (z, y, x, c) in 3D) and
+    returns the outputs asked ("outputs": "raw", "final", "post"; those the model gives): an image as a .npy file next
+    to "image" ({"npy": path}, (z, y, x, c), z = 1 in 2D), points as a table ({"columns", "rows"}) or a class
+    ({"value"}).
     """
-    import shutil
-
     import numpy as np
+    import pandas as pd
 
     from biapy_compat import predict
 
     b = _model(args)
-    results = b.cfg.PATHS.RESULT_DIR.PATH
-    shutil.rmtree(results, ignore_errors=True)
-    predict(b, np.load(args["image"]), return_prediction=False)
-    return {"results_dir": results}
+    is3d = b.cfg.PROBLEM.NDIM == "3D"
+    result = {}
+    for key, data in predict(b, np.load(args["image"]), output=args["outputs"]).items():
+        if isinstance(data, pd.DataFrame):
+            result[key] = {"columns": [str(c) for c in data.columns],
+                           "rows": data.astype(object).where(data.notna(), None).values.tolist()}
+        elif np.ndim(data) == 0:
+            result[key] = {"value": np.asarray(data).item()}
+        else:
+            data = np.asarray(data)
+            if data.ndim == (3 if is3d else 2):  # no channel axis
+                data = data[..., None]
+            path = os.path.join(os.path.dirname(args["image"]), "output_{}.npy".format(key))
+            np.save(path, np.ascontiguousarray(data if is3d else data[None]))  # C order, as the plugin reads it
+            result[key] = {"npy": path}
+    return result
 
 
 COMMANDS = {
