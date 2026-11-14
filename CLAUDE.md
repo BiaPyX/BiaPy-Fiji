@@ -120,7 +120,9 @@ model to an image open in Fiji; `Plugins > BiaPy > Apply entire workflow` is the
   post-processing (median filter, synapse points); `load_model`'s answer wins. CUDA reads `CUDA_VISIBLE_DEVICES` once
   per process, so a process that built a model on a device can't use another: `load_model` answers
   `{"restart": true}` and the panel restarts the server (`PythonBridge.restartServer`, between commands). `apply_model` runs BiaPy's `predict(image,
-  output=[...])` (in memory; `biapy_compat.predict` reads them from the test's folders for 3.7.3) and returns each
+  output=[...])` (in memory: the model is loaded without `result_dir`, so nothing is written; for 3.7.3
+  `biapy_compat.load_workflow_from_model` gives it a temporary results folder and `biapy_compat.predict` reads the
+  outputs from the test's folders there) and returns each
   output: an image as a `.npy` next to the input, (z, y, x, c) in C order (`ModelApplier.readNpy`: uint8/bool 8-bit,
   uint16 16-bit, other numbers 32-bit), the detection points as a table (`columns`, `rows`) and the class as a value.
 - The image goes to Python as a `.npy` file, (z, y, x, c) or (y, x, c), keeping 8/16-bit types (BiaPy's normalization

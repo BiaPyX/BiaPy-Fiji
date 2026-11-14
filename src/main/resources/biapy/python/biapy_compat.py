@@ -286,6 +286,31 @@ _OUTPUT_FOLDERS = {
 }
 
 
+def _predicts_outputs():
+    """Whether BiaPy.predict returns the outputs asked ("output"); before, they were only written to disk."""
+    import inspect
+
+    from biapy import BiaPy
+
+    return not needed(NEXT_RELEASE) or "output" in inspect.signature(BiaPy.predict).parameters
+
+
+def load_workflow_from_model(source, **kwargs):
+    """BiaPy.load_workflow_from_model (same arguments and result), with the fixes it needs."""
+    import tempfile
+
+    from biapy import BiaPy
+
+    # predict() can't return the outputs: they are written in a results folder of the model, to read them from there
+    # (see predict), the raw output too
+    if not _predicts_outputs() and "result_dir" not in kwargs:
+        biapy = BiaPy.load_workflow_from_model(source, result_dir=tempfile.mkdtemp(prefix="biapy_apply_model_"),
+                                               **kwargs)
+        biapy.update_config({"TEST.SAVE_MODEL_RAW_OUTPUT": True})
+        return biapy
+    return BiaPy.load_workflow_from_model(source, **kwargs)
+
+
 def predict(biapy, image, **kwargs):
     """BiaPy.predict (same arguments and result), with the fixes it needs."""
     import inspect
@@ -294,8 +319,8 @@ def predict(biapy, image, **kwargs):
         # A second predict() on the same instance failed in classification: the predictions of the previous one were
         # kept
         biapy.workflow.all_pred, biapy.workflow.all_gt, biapy.workflow.metrics_per_test_file = [], [], []
-        # No "output" argument: the outputs are read from the files the test writes (its results folder is cleared
-        # first, so it only has this image's; TEST.SAVE_MODEL_RAW_OUTPUT must be on for "raw")
+        # No "output" argument: the outputs are read from the files the test writes in the results folder of
+        # load_workflow_from_model (cleared first, so it only has this image's)
         if "output" in kwargs and "output" not in inspect.signature(biapy.predict).parameters:
             return _outputs_from_files(biapy, image, kwargs.pop("output"), **kwargs)
     return biapy.predict(image, **kwargs)

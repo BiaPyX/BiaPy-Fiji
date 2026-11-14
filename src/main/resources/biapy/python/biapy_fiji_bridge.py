@@ -443,6 +443,8 @@ def _model(args, source=None):
     """
     from biapy import BiaPy
 
+    from biapy_compat import load_workflow_from_model
+
     if not hasattr(BiaPy, "predict"):
         raise RuntimeError("The BiaPy version installed can't apply a model to an image open in Fiji. Install a newer "
                            "BiaPy version in the 'Installation' tab.")
@@ -457,10 +459,7 @@ def _model(args, source=None):
                 _device_name(device)))
         _applied["device"] = device
         log("Building the model {} . . .".format(args["model"]))
-        _applied["biapy"] = BiaPy.load_workflow_from_model(source or args["model"], result_dir=args["out_dir"],
-                                                           name="apply", gpu=device)
-        # The raw output of the model is written too, to be opened in Fiji if asked
-        _applied["biapy"].update_config({"TEST.SAVE_MODEL_RAW_OUTPUT": True})
+        _applied["biapy"] = load_workflow_from_model(source or args["model"], name="apply", gpu=device)
         _applied["key"] = key
     return _applied["biapy"]
 

@@ -270,6 +270,24 @@ def test_apply_model_outputs(monkeypatch, tmp_path):
     shutil.rmtree(results)
     assert biapy_compat.predict(old, np.zeros((4, 5, 1)), output="final").equals(points)
 
+    # The model is loaded in memory, unless predict() can't return the outputs: then they go to a results folder
+    from biapy import BiaPy
+
+    loaded = []
+
+    class Loaded:
+        def update_config(self, values):
+            loaded.append(values)
+
+    monkeypatch.setattr(BiaPy, "load_workflow_from_model", lambda source, **kw: (loaded.append(kw), Loaded())[1])
+    biapy_compat.load_workflow_from_model("m.pth", name="apply", gpu="0")
+    assert loaded == [{"name": "apply", "gpu": "0"}]
+    loaded.clear()
+    monkeypatch.setattr(BiaPy, "predict", old_predict)
+    biapy_compat.load_workflow_from_model("m.pth", name="apply", gpu="0")
+    assert "biapy_apply_model_" in loaded[0]["result_dir"] and loaded[1] == {"TEST.SAVE_MODEL_RAW_OUTPUT": True}
+    os.rmdir(loaded[0]["result_dir"])
+
 
 def test_compat_zoo_downloads(monkeypatch, tmp_path):
     """A zoo model kept on disk (BiaPy's download_bmz_model after 3.7.3, biapy_compat's copy before)."""
