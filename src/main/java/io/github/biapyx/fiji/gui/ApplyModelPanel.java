@@ -496,7 +496,7 @@ public class ApplyModelPanel extends JPanel {
 	static String problem(ImagePlus imp, JsonObject info, String model) {
 		String m = "The model selected (" + model + ")", image = "'" + imp.getTitle() + "'";
 		if (info.get("tracking").getAsBoolean())
-			return model == null ? "This model tracks over time: use 'Apply entire workflow' (Plugins > BiaPy)."
+			return model == null ? "This model tracks over time: use 'Run BiaPy' (Plugins > BiaPy)."
 					: m + " tracks objects over time, which 'Apply model' can't do. Please use it with 'Apply entire "
 							+ "workflow' (Plugins > BiaPy) instead.";
 		int c = info.get("channels").getAsInt();

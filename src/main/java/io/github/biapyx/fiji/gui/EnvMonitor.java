@@ -14,7 +14,7 @@ import io.github.biapyx.fiji.env.PythonBridge;
 import io.github.biapyx.fiji.env.PythonEnv;
 
 /**
- * The state of BiaPy's Python environment, shared by the BiaPy windows ("Apply entire workflow" and "Apply model"):
+ * The state of BiaPy's Python environment, shared by the BiaPy windows ("Run BiaPy" and "Apply model"):
  * installing or checking it in one updates both.
  */
 public final class EnvMonitor {

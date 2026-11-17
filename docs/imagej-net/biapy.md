@@ -44,7 +44,7 @@ self-supervised learning, image classification and image-to-image translation, i
 3. Click on {% include button label='Manage update sites' %}.
 4. Tick the checkbox of the update site `BiaPy` and click {% include button label='Apply and Close' %}.
 5. Click on {% include button label='Apply changes' %} and restart Fiji.
-6. Open {% include bc path='Plugins|BiaPy|Apply entire workflow' %}. In the HOME tab, click on {% include button label='Install BiaPy' %}:
+6. Open {% include bc path='Plugins|BiaPy|Run BiaPy' %}. In the HOME tab, click on {% include button label='Install BiaPy' %}:
    it downloads BiaPy and PyTorch into the Fiji folder (several GB, only the first time).
 
 ## Documentation and support
