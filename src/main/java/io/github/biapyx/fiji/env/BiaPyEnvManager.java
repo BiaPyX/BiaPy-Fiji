@@ -71,6 +71,10 @@ public class BiaPyEnvManager {
 		boolean cudaTorch = Platform.isWindows() && hasNvidiaGpu();
 		List<String> steps = new ArrayList<>(Arrays.asList("Installing micromamba", "Creating the Python environment"));
 		if (cudaTorch) steps.add("Installing PyTorch with GPU support");
+		// PyPI has no PyTorch for Intel Macs since 2.2: conda-forge still builds it
+		boolean condaTorch = Platform.isMacOS() && !System.getProperty("os.arch", "").matches("aarch64|arm64")
+				&& !Platform.isRosetta();
+		if (condaTorch) steps.add("Installing PyTorch");
 		steps.add("Installing BiaPy and its dependencies");
 		int total = steps.size();
 		int s = 0;
@@ -117,6 +121,17 @@ public class BiaPyEnvManager {
 		if (cudaTorch) {
 			listener.step(++s, total, steps.get(s));
 			pip(python, "torch", "torchvision", "--index-url", TORCH_CUDA_INDEX);
+		}
+		if (condaTorch) {
+			listener.step(++s, total, steps.get(s));
+			listener.task(-1, "Installing PyTorch from conda-forge . . .");
+			// shortcut: same range as BiaPy's pyproject (3.7.1+), update both together
+			int code = runMicromamba(root, micromamba, listener::log, "install", "-p",
+					PythonEnv.getManagedEnvDir().getAbsolutePath(), "-c", "conda-forge", "pytorch>=2.9,<3",
+					"torchvision>=0.24,<1", "--yes");
+			checkCancelled();
+			if (code != 0) throw new IllegalStateException("micromamba could not install PyTorch (exit code " + code
+					+ "). See the details.");
 		}
 
 		listener.step(++s, total, steps.get(s));
