@@ -71,7 +71,7 @@ public class BiaPyEnvManager {
 		boolean cudaTorch = Platform.isWindows() && hasNvidiaGpu();
 		List<String> steps = new ArrayList<>(Arrays.asList("Installing micromamba", "Creating the Python environment"));
 		if (cudaTorch) steps.add("Installing PyTorch with GPU support");
-		// PyPI has no PyTorch for Intel Macs since 2.2: conda-forge still builds it
+		// PyPI has no PyTorch for Intel Macs since 2.2, nor numba for the numpy it brings: conda-forge builds both
 		boolean condaTorch = Platform.isMacOS() && !System.getProperty("os.arch", "").matches("aarch64|arm64")
 				&& !Platform.isRosetta();
 		if (condaTorch) steps.add("Installing PyTorch");
@@ -125,10 +125,10 @@ public class BiaPyEnvManager {
 		if (condaTorch) {
 			listener.step(++s, total, steps.get(s));
 			listener.task(-1, "Installing PyTorch from conda-forge . . .");
-			// shortcut: same range as BiaPy's pyproject (3.7.1+), update both together
+			// shortcut: same ranges as BiaPy's pyproject (3.7.1+), update both together
 			int code = runMicromamba(root, micromamba, listener::log, "install", "-p",
 					PythonEnv.getManagedEnvDir().getAbsolutePath(), "-c", "conda-forge", "pytorch>=2.9,<3",
-					"torchvision>=0.24,<1", "--yes");
+					"torchvision>=0.24,<1", "numba>=0.59", "--yes");
 			checkCancelled();
 			if (code != 0) throw new IllegalStateException("micromamba could not install PyTorch (exit code " + code
 					+ "). See the details.");
