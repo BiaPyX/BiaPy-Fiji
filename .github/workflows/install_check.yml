@@ -1,0 +1,72 @@
+# Installs BiaPy from scratch with the plugin's own installer (InstallCheck) on several OS versions and checks that
+# the environment works. update_site.yml runs it before uploading a release; it can also be run by hand
+# (Actions > Installation check > Run workflow), e.g. before publishing a release.
+
+name: Installation check
+
+on:
+  workflow_call:
+    inputs:
+      biapy_version:
+        description: BiaPy version to install (empty = the plugin's default)
+        type: string
+        default: ''
+  workflow_dispatch:
+    inputs:
+      biapy_version:
+        description: BiaPy version to install (empty = the plugin's default)
+        type: string
+        default: ''
+  pull_request:
+    paths:
+      - 'src/main/java/io/github/biapyx/fiji/env/**'
+      - 'src/main/resources/biapy/biapy-fiji.properties'
+      - 'src/test/java/io/github/biapyx/fiji/InstallCheck.java'
+      - '.github/workflows/install_check.yml'
+
+jobs:
+  install:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Ubuntu 22.04, os: ubuntu-22.04 }
+          - { name: Ubuntu 24.04, os: ubuntu-24.04 }
+          - { name: Ubuntu 26.04, os: ubuntu-26.04 }
+          - { name: Ubuntu 24.04 ARM, os: ubuntu-24.04-arm }
+          - { name: Windows Server 2022, os: windows-2022 }
+          - { name: Windows Server 2025, os: windows-2025 }
+          - { name: macOS 15 Apple Silicon, os: macos-15 }
+          - { name: macOS 26 Apple Silicon, os: macos-26 }
+          - { name: macOS 15 Intel, os: macos-15-intel }
+          - { name: macOS 26 Intel, os: macos-26-intel }
+          # Intel Java on Apple Silicon (an Intel Fiji, run through Rosetta)
+          - { name: macOS 15 Apple Silicon + Intel Java, os: macos-15, java-arch: x64 }
+    defaults:
+      run:
+        shell: bash
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'zulu'
+        architecture: ${{ matrix.java-arch }}
+        cache: 'maven'
+
+    - name: Build the plugin and its classpath
+      run: |
+        mvn -B -q package -DskipTests
+        mvn -B -q dependency:build-classpath -Dmdep.outputFile=cp.txt
+
+    - name: Install BiaPy with the plugin's installer and check it
+      run: |
+        SEP=$([ "$RUNNER_OS" = Windows ] && echo ';' || echo ':')
+        CP="$GITHUB_WORKSPACE/target/classes${SEP}$GITHUB_WORKSPACE/target/test-classes${SEP}$(cat cp.txt)"
+        mkdir -p Fiji.app && cd Fiji.app
+        FIJI=$(pwd -W 2>/dev/null || pwd)  # a Windows path for Java on Windows
+        java -Djava.awt.headless=true -Dij.dir="$FIJI" -cp "$CP" io.github.biapyx.fiji.InstallCheck "${{ inputs.biapy_version }}"

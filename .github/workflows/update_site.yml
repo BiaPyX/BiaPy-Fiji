@@ -1,4 +1,4 @@
-# On every release, attaches the plugin's jar to it and uploads it to the BiaPy update site of Fiji
+# On every release, checks the installation on every OS (install_check.yml), then attaches the plugin's jar to it and uploads it to the BiaPy update site of Fiji
 # (https://sites.imagej.net/BiaPyX/).
 # Needs the repository secret UPDATE_SITE_PASSWORD (upload password of the danifranco account on sites.imagej.net).
 
@@ -9,7 +9,12 @@ on:
     types: [published]
 
 jobs:
+  # BiaPy must install and work on every OS before the jar reaches users
+  install-check:
+    uses: ./.github/workflows/install_check.yml
+
   upload:
+    needs: install-check
     runs-on: ubuntu-latest
     permissions:
       contents: write   # to attach the jar to the release

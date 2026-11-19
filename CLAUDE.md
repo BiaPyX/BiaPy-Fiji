@@ -63,7 +63,7 @@ Exception: `RunPanel.mpsConfig` (Java) patches the config for Apple GPUs ("--gpu
 ## Apply model
 
 `Plugins > BiaPy > Apply model` (`ApplyModel_Plugin`, `gui/ApplyModelWindow` with `gui/ApplyModelPanel`) applies a
-model to an image open in Fiji; `Plugins > BiaPy > Apply entire workflow` is the main window.
+model to an image open in Fiji; `Plugins > BiaPy > Run BiaPy` is the main window.
 - The work without UI (describe, load, apply, the `.npy` files, `Results`) is `gui/ModelApplier`, shared by the window
   and the macro command: `run("Apply model", "model=[...] outputs=[final post] device=0")` (`ApplyModel_Plugin` runs
   `ModelApplier.runMacro` when there are macro options; `outputs` and `device` optional) on the current image. A
@@ -228,7 +228,11 @@ No JDK/Maven on PATH. Create them once:
 4. Compare the new jar's non-class files with the previous jar and report the differences.
 
 Release: publishing a GitHub release whose tag matches the version in `pom.xml` makes
-`.github/workflows/update_site.yml` upload the jar to https://sites.imagej.net/BiaPyX/.
+`.github/workflows/update_site.yml` upload the jar to https://sites.imagej.net/BiaPyX/. It first runs
+`install_check.yml`: on each OS version of its matrix, `InstallCheck` (test harness) installs BiaPy from scratch with
+`BiaPyEnvManager` and checks it with the bridge's `env_quick`/`env_verify`/`cache_folders` plus an import + numba
+smoke test; the upload waits for all of them. `install_check.yml` also runs by hand (workflow_dispatch, optional BiaPy
+version) and on PRs touching `env/`.
 
 ## Conventions
 
