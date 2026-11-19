@@ -1,5 +1,11 @@
 # BiaPy for Fiji
 
+<p align="center">
+  <a href="https://youtu.be/htIGUCJJlAk?si=ysfXdNjlpAGAAi2h">
+    <img width="849" height="474" alt="Watch the video" src="https://github.com/user-attachments/assets/9b0210a0-61f2-4394-9e0a-c9c427e3b46c" />
+  </a>
+</p>
+
 Fiji plugin to run [BiaPy](https://biapyx.github.io) deep-learning workflows. It mimics
 [BiaPy-GUI](https://github.com/BiaPyX/BiaPy-GUI) inside a single window with three tabs:
 
