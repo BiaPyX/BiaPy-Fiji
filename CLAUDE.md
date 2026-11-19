@@ -227,8 +227,11 @@ No JDK/Maven on PATH. Create them once:
    entry.
 4. Compare the new jar's non-class files with the previous jar and report the differences.
 
-Release: publishing a GitHub release whose tag matches the version in `pom.xml` makes
-`.github/workflows/update_site.yml` upload the jar to https://sites.imagej.net/BiaPyX/. It first runs
+Versions: `pom.xml` holds `X.Y.Z-SNAPSHOT` between releases (jars, `dist/` zips and everything else keep it);
+`BiaPyFiji.PLUGIN_VERSION` drops it, so the GUI shows `X.Y.Z`. To release, the user sets the pom to `X.Y.Z` and
+publishes a GitHub release tagged `vX.Y.Z` (must match the pom): `.github/workflows/update_site.yml` uploads that jar to
+https://sites.imagej.net/BiaPyX/, then its `next-snapshot` job commits `X.Y.(Z+1)-SNAPSHOT` to the default branch (only
+if the branch's pom is still `X.Y.Z`). It first runs
 `install_check.yml`: on each OS version of its matrix, `InstallCheck` (test harness) installs BiaPy from scratch with
 `BiaPyEnvManager` and checks it with the bridge's `env_quick`/`env_verify`/`cache_folders` plus an import + numba
 smoke test; the upload waits for all of them. `install_check.yml` also runs by hand (workflow_dispatch, optional BiaPy

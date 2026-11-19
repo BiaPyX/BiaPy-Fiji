@@ -1,5 +1,6 @@
-# On every release, checks the installation on every OS (install_check.yml), then attaches the plugin's jar to it and uploads it to the BiaPy update site of Fiji
-# (https://sites.imagej.net/BiaPyX/).
+# On every release, checks the installation on every OS (install_check.yml), then attaches the plugin's jar to it,
+# uploads it to the BiaPy update site of Fiji (https://sites.imagej.net/BiaPyX/) and moves pom.xml to the next
+# -SNAPSHOT version.
 # Needs the repository secret UPDATE_SITE_PASSWORD (upload password of the danifranco account on sites.imagej.net).
 
 name: Upload to the Fiji update site
@@ -27,13 +28,14 @@ jobs:
         distribution: 'zulu'
         cache: 'maven'
 
-    - name: Build the jar
-      run: mvn -B package -DskipTests
-
+    # pom.xml has the release's version (X.Y.Z) when the release is published, X.Y.Z-SNAPSHOT otherwise
     - name: Check that the release tag matches the version in pom.xml
       run: |
-        JAR=target/biapy-fiji-${GITHUB_REF_NAME#v}.jar
-        [ -f "$JAR" ] || { echo "::error::Release $GITHUB_REF_NAME doesn't match the version in pom.xml ($(ls target/*.jar))"; exit 1; }
+        POM=$(mvn -B -q help:evaluate -Dexpression=project.version -DforceStdout)
+        [ "$POM" = "${GITHUB_REF_NAME#v}" ] || { echo "::error::Release $GITHUB_REF_NAME doesn't match the version in pom.xml ($POM): set it to ${GITHUB_REF_NAME#v} (without -SNAPSHOT)"; exit 1; }
+
+    - name: Build the jar
+      run: mvn -B package -DskipTests
 
     - name: Attach the jar to the release
       env:
@@ -53,3 +55,34 @@ jobs:
         UPDATE_SITE_URL: https://sites.imagej.net/BiaPyX/
         UPDATE_SITE_PASSWORD: ${{ secrets.UPDATE_SITE_PASSWORD }}
       run: scripts/upload_update_site.sh Fiji.app
+
+  # Development continues with the next version: X.Y.(Z+1)-SNAPSHOT is committed to the default branch
+  next-snapshot:
+    needs: upload
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # to push the commit
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.repository.default_branch }}
+
+    - uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'zulu'
+        cache: 'maven'
+
+    - name: Set pom.xml to the next SNAPSHOT version and push it
+      run: |
+        TAG=${GITHUB_REF_NAME#v}
+        POM=$(mvn -B -q help:evaluate -Dexpression=project.version -DforceStdout)
+        # Someone may have moved the branch to another version already
+        [ "$POM" = "$TAG" ] || { echo "pom.xml is at $POM, not $TAG: left as it is"; exit 0; }
+        IFS=. read -r MAJOR MINOR PATCH <<< "$TAG"
+        NEXT="$MAJOR.$MINOR.$((PATCH + 1))-SNAPSHOT"
+        mvn -B -q versions:set -DnewVersion="$NEXT" -DgenerateBackupPoms=false
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git commit -am "Bump to $NEXT after releasing $TAG"
+        git push

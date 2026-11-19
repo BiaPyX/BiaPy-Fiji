@@ -132,8 +132,10 @@ cp target/biapy-fiji-<version>.jar /path/to/Fiji.app/plugins/
 ### Publishing to the update site
 
 The site is `https://sites.imagej.net/BiaPyX/`. Publishing a GitHub release does it automatically and attaches the jar
-to the release (`.github/workflows/update_site.yml`, with the repository secret `UPDATE_SITE_PASSWORD`): bump `<version>` in
-`pom.xml` first and tag the release with it (`0.2.0` or `v0.2.0`), or the workflow stops.
+to the release (`.github/workflows/update_site.yml`, with the repository secret `UPDATE_SITE_PASSWORD`). Between releases
+`<version>` in `pom.xml` is the next version with `-SNAPSHOT` (e.g. `0.2.0-SNAPSHOT`). To release, set it to `0.2.0`,
+commit, and publish a release tagged `0.2.0` or `v0.2.0` (the workflow stops if they differ). Once the jar is uploaded,
+the workflow commits `0.2.1-SNAPSHOT` to the default branch. The plugin's windows never show `-SNAPSHOT`.
 
 To do it by hand instead, publish a version (not a `-SNAPSHOT`): build it and upload the jar with
 an up-to-date Fiji used only for that (run `Help > Update...` in it first: the Updater refuses to upload from a Fiji
