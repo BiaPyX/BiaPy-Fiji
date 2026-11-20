@@ -534,6 +534,34 @@ def cmd_describe_model(args):
     return out
 
 
+class DownloadError(Exception):
+    """A zoo model could not be downloaded: its message is for the user, shown as it is."""
+
+
+def _download_problem(model, e, kept):
+    """What went wrong downloading the zoo model "model" (exception "e"), in words for the user."""
+    import requests
+
+    if isinstance(e, requests.HTTPError) and e.response is not None and e.response.status_code == 404:
+        what = "The BioImage Model Zoo does not have it (any more): check its name, or choose another one."
+    elif isinstance(e, requests.HTTPError) and e.response is not None and e.response.status_code >= 500:
+        what = "The BioImage Model Zoo server is having problems right now. Try again later."
+    elif isinstance(e, requests.Timeout):
+        what = "The BioImage Model Zoo took too long to answer. Check your internet connection and try again."
+    elif isinstance(e, (requests.ConnectionError, requests.exceptions.ChunkedEncodingError)):
+        what = ("The connection was lost while downloading it. Check your internet connection (or proxy) and "
+                "try again.")
+    elif isinstance(e, requests.RequestException):
+        what = "The BioImage Model Zoo could not be reached. Check your internet connection and try again."
+    elif isinstance(e, OSError):
+        what = "Its files could not be saved on this computer: is the disk full, or the folder not writable?"
+    else:
+        what = "Something unexpected went wrong."
+    if kept and not isinstance(e, OSError):
+        what += " The files already downloaded are kept: trying again continues from them."
+    return "Could not download the model '{}'.\n\n{}\n\nDetails: {}: {}".format(model, what, type(e).__name__, e)
+
+
 def cmd_load_model(args):
     """
     Builds a model to apply it to the images open in Fiji, downloading it if needed: a BiaPy .pth checkpoint or a
@@ -569,7 +597,12 @@ def cmd_load_model(args):
                 out.write("DOWNLOAD_PROGRESS:{} {}\n".format(done, total))
                 out.flush()
 
-        source = download(args["model"], temporary, callback=progress)
+        try:
+            source = download(args["model"], temporary, callback=progress)
+        except Exception as e:
+            if temporary:
+                shutil.rmtree(temporary, ignore_errors=True)
+            raise DownloadError(_download_problem(args["model"], e, temporary is None)) from e
         if temporary is None:
             out.write("DOWNLOAD_KEPT\n")  # complete, even if building the model fails below
             out.flush()
@@ -652,7 +685,8 @@ def run_command(command, args):
         result = {"ok": True, "result": COMMANDS[command](args)}
     except Exception as e:
         log(traceback.format_exc())
-        result = {"ok": False, "error": "{}: {}".format(type(e).__name__, e), "traceback": traceback.format_exc()}
+        error = str(e) if isinstance(e, DownloadError) else "{}: {}".format(type(e).__name__, e)
+        result = {"ok": False, "error": error, "traceback": traceback.format_exc()}
     sys.stdout.flush()
     log(RESULT_PREFIX + json.dumps(result))
 
