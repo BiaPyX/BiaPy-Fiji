@@ -233,8 +233,11 @@ publishes a GitHub release tagged `vX.Y.Z` (must match the pom): `.github/workfl
 https://sites.imagej.net/BiaPyX/, then its `next-snapshot` job commits `X.Y.(Z+1)-SNAPSHOT` to the default branch (only
 if the branch's pom is still `X.Y.Z`). It first runs
 `install_check.yml`: on each OS version of its matrix, `InstallCheck` (test harness) installs BiaPy from scratch with
-`BiaPyEnvManager` and checks it with the bridge's `env_quick`/`env_verify`/`cache_folders` plus an import + numba
-smoke test; the upload waits for all of them. `install_check.yml` also runs by hand (workflow_dispatch, optional BiaPy
+`BiaPyEnvManager` and checks it with the bridge's `env_quick`/`env_verify`/`cache_folders` plus an import + numba + DataLoader
+workers (`file_system` sharing, as on macOS) smoke test, then a short job on the CPU: `install_check_job.py` (test
+resource) writes a tiny 2D instance segmentation dataset; it trains 1 epoch with 2 workers and tests, launched with
+`RunPanel.jobCommand` + `PythonEnv.environment()` like the Run Workflow page, and its checkpoint goes through the
+bridge's `describe_model`/`load_model`/`apply_model` like Apply model (~30 s here); the upload waits for all of them. `install_check.yml` also runs by hand (workflow_dispatch, optional BiaPy
 version) and on PRs touching `env/`.
 
 ## Conventions

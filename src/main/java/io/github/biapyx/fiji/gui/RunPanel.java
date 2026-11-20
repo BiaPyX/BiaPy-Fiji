@@ -379,16 +379,37 @@ public class RunPanel extends JPanel {
 		Prefs.set(PREF_OUT_DIR, out.getAbsolutePath());
 		Prefs.savePreferences();
 
+		File runConfig = yaml;
+		boolean mps = device.getSelectedItem() != null && device.getSelectedItem().toString().startsWith("MPS");
+		if (mps) {
+			try {
+				File patched = mpsConfig(yaml, name);
+				if (patched != null) runConfig = patched;
+			} catch (Exception e) {
+				ij.IJ.log("[BiaPy] Could not prepare the configuration for Apple Silicon's GPU: " + e.getMessage());
+			}
+		}
+		List<String> cmd;
+		try {
+			cmd = jobCommand(runConfig, out, name, gpus, mps);
+		} catch (Exception e) {
+			UiUtils.error(this, "Could not prepare the distributed run: " + e.getMessage());
+			return;
+		}
+		main.startJob(name, yaml, jobFolder(), dev, cmd);
+		outputField.setText("");
+	}
+
+	/**
+	 * The command that runs a BiaPy job: on the GPUs {@code gpus} (nvidia-smi's numbers), or if empty on Apple's GPU
+	 * ({@code mps}) or the CPU. Also used by the installation check (InstallCheck), so that it runs jobs the same way.
+	 */
+	public static List<String> jobCommand(File config, File out, String name, List<Integer> gpus, boolean mps)
+			throws Exception {
 		List<String> cmd = PythonEnv.pythonCommand();
 		if (gpus.size() > 1) {
 			// One process per GPU, started by PyTorch's distributed launcher
-			File launcher;
-			try {
-				launcher = io.github.biapyx.fiji.env.PythonBridge.script("biapy_run.py");
-			} catch (Exception e) {
-				UiUtils.error(this, "Could not prepare the distributed run: " + e.getMessage());
-				return;
-			}
+			File launcher = io.github.biapyx.fiji.env.PythonBridge.script("biapy_run.py");
 			cmd.add("-u");
 			cmd.add("-m");
 			cmd.add("torch.distributed.run");
@@ -400,17 +421,7 @@ public class RunPanel extends JPanel {
 			cmd.add("import sys, biapy; sys.argv[0] = 'biapy'; biapy.main()");
 		}
 		cmd.add("--config");
-		File runConfig = yaml;
-		boolean mps = device.getSelectedItem() != null && device.getSelectedItem().toString().startsWith("MPS");
-		if (mps) {
-			try {
-				File patched = mpsConfig(yaml, name);
-				if (patched != null) runConfig = patched;
-			} catch (Exception e) {
-				ij.IJ.log("[BiaPy] Could not prepare the configuration for Apple Silicon's GPU: " + e.getMessage());
-			}
-		}
-		cmd.add(runConfig.getAbsolutePath());
+		cmd.add(config.getAbsolutePath());
 		cmd.add("--result_dir");
 		cmd.add(out.getAbsolutePath());
 		cmd.add("--name");
@@ -428,8 +439,7 @@ public class RunPanel extends JPanel {
 			cmd.add("--gpu");
 			cmd.add("mps");
 		}
-		main.startJob(name, yaml, jobFolder(), dev, cmd);
-		outputField.setText("");
+		return cmd;
 	}
 
 	/**

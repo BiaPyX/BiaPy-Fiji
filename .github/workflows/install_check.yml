@@ -1,6 +1,7 @@
-# Installs BiaPy from scratch with the plugin's own installer (InstallCheck) on several OS versions and checks that
-# the environment works. update_site.yml runs it before uploading a release; it can also be run by hand
-# (Actions > Installation check > Run workflow), e.g. before publishing a release.
+# Installs BiaPy from scratch with the plugin's own installer (InstallCheck) on several OS versions, checks that
+# the environment works and runs a short job (train 1 epoch + test, then Apply model) on the CPU.
+# update_site.yml runs it before uploading a release; it can also be run by hand (Actions > Installation check >
+# Run workflow), e.g. before publishing a release.
 
 name: Installation check
 
@@ -21,7 +22,9 @@ on:
     paths:
       - 'src/main/java/io/github/biapyx/fiji/env/**'
       - 'src/main/resources/biapy/biapy-fiji.properties'
+      - 'src/main/java/io/github/biapyx/fiji/gui/RunPanel.java'
       - 'src/test/java/io/github/biapyx/fiji/InstallCheck.java'
+      - 'src/test/resources/install_check_job.py'
       - '.github/workflows/install_check.yml'
 
 jobs:

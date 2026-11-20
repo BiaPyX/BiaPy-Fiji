@@ -97,6 +97,10 @@ public class PythonEnv {
 			vars.put("USE_LIBUV", "0");
 		} else {
 			vars.put("PATH+", new File(env, "bin").getAbsolutePath());
+			// conda-forge's PyTorch ships it without the execute permission, and macOS's DataLoader workers need it
+			// ("torch_shm_manager ... execl failed: Permission denied"). Here so that existing installations get fixed
+			File shmManager = new File(env, "bin/torch_shm_manager");
+			if (shmManager.isFile() && !shmManager.canExecute()) shmManager.setExecutable(true);
 			if (Platform.isMacOS()) {
 				vars.put("DYLD_FALLBACK_LIBRARY_PATH+", new File(env, "lib").getAbsolutePath());
 				// The few operations PyTorch has not implemented for Apple Silicon's GPU (MPS) run on the CPU
