@@ -65,8 +65,9 @@ Exception: `RunPanel.mpsConfig` (Java) patches the config for Apple GPUs ("--gpu
 `Plugins > BiaPy > Apply model` (`ApplyModel_Plugin`, `gui/ApplyModelWindow` with `gui/ApplyModelPanel`) applies a
 model to an image open in Fiji; `Plugins > BiaPy > Run BiaPy` is the main window.
 - The work without UI (describe, load, apply, the `.npy` files, `Results`) is `gui/ModelApplier`, shared by the window
-  and the macro command: `run("Apply model", "model=[...] outputs=[final post] device=0")` (`ApplyModel_Plugin` runs
-  `ModelApplier.runMacro` when there are macro options; `outputs` and `device` optional) on the current image. A
+  and the macro command: `run("Apply model", "model=[...] outputs=[final post] device=0 keep")` (`ApplyModel_Plugin` runs
+  `ModelApplier.runMacro` when there are macro options; `outputs`, `device` and `keep` optional; `keep`, a bare word
+  as ImageJ records checkboxes, keeps a zoo model as the window's checkbox does) on the current image. A
   checkpoint is checked against the image before loading; a zoo model only once loaded (no search entry in a macro).
   Applying in the window records the command (IJ1 `Recorder.setCommand`/`recordOption`/`saveCommand`, after a
   `selectImage`); opening the window is not recorded.

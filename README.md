@@ -27,10 +27,12 @@ Menu entries:
   applying a model in the window records this command (`Plugins > Macros > Record...`):
   ```
   run("Apply model", "model=[/path/to/model.pth] outputs=[final post] device=0");
+  run("Apply model", "model=affable-shark device=cpu keep");
   ```
   `model` is a `.pth` checkpoint or a zoo nickname (e.g. `model=affable-shark`). `outputs` (`raw`, `final`, `post`)
   and `device` (a GPU number, `mps` or `cpu`) are optional: by default, the outputs the window opens and the device
-  used already (else the GPU with most free memory). The outputs open as in the window.
+  used already (else the GPU with most free memory). `keep` keeps a zoo model in the system's cache folder (as "Keep a
+  copy on this computer" in the window), so it is not downloaded again. The outputs open as in the window.
 
 ## Install
 

@@ -691,7 +691,7 @@ public class ApplyModelPanel extends JPanel {
 			ModelApplier.Results results = ModelApplier.apply(running, imp, info, loaded, loadedDevice, wanted, this::busy);
 			SwingUtilities.invokeLater(() -> {
 				results.show(imp);
-				ModelApplier.record(imp, m, wanted, loadedDevice);
+				ModelApplier.record(imp, m, wanted, loadedDevice, zooSelected() && keep.isSelected());
 			});
 			return info;
 		}, "Done: the results are open in Fiji.");

@@ -49,10 +49,12 @@ import io.github.biapyx.fiji.env.PythonEnv;
  *
  * <pre>
  * run("Apply model", "model=[/path/to/model.pth] outputs=[final post] device=0");
+ * run("Apply model", "model=affable-shark device=cpu keep");
  * </pre>
  *
  * "model" is a .pth checkpoint or a zoo nickname; "outputs" (raw, final, post) and "device" (a GPU number, mps or cpu)
  * are optional: the outputs the window opens by default, and the device used already or the GPU with most free memory.
+ * "keep" keeps a zoo model in the system's cache folder, as the window's "Keep a copy on this computer".
  * The model is applied to the current image and its outputs are opened as in the window. Applying a model in the window
  * records this command.
  */
@@ -163,13 +165,14 @@ public final class ModelApplier {
 	// The macro command
 	/////////////////////////////////
 	/** Records the macro command of applying the model to {@code imp} (if the Recorder is open). */
-	static void record(ImagePlus imp, String model, List<String> keys, String gpu) {
+	static void record(ImagePlus imp, String model, List<String> keys, String gpu, boolean keep) {
 		if (!Recorder.record) return;
 		Recorder.record("selectImage", imp.getTitle());
 		Recorder.setCommand(COMMAND);
 		Recorder.recordOption("model", model);
 		Recorder.recordOption("outputs", String.join(" ", keys));
 		Recorder.recordOption("device", gpu.isEmpty() ? "cpu" : gpu);
+		if (keep) Recorder.recordOption("keep");
 		Recorder.saveCommand();
 	}
 
@@ -183,6 +186,8 @@ public final class ModelApplier {
 		String outputs = Macro.getValue(options, "outputs", "").trim();
 		String device = Macro.getValue(options, "device", null);
 		String gpu = device == null ? null : device.trim().equalsIgnoreCase("cpu") ? "" : device.trim().toLowerCase();
+		// A checkbox, as ImageJ records them: the bare word (outside [...] values, e.g. a path with " keep " in it)
+		boolean keep = (" " + options.replaceAll("\\[[^\\]]*\\]", "") + " ").contains(" keep ");
 		try {
 			if (imp == null) throw new PythonBridge.BridgeException("Open the image to apply the model to first.");
 			if (model.isEmpty())
@@ -202,7 +207,7 @@ public final class ModelApplier {
 			// which tells what it is, is not known here)
 			if (model.endsWith(".pth")) check(imp, describe(bridge, model, null, status), name);
 			status.accept("Loading the model '" + name + "' . . .");
-			JsonObject info = load(bridge, model, gpu, false, status);
+			JsonObject info = load(bridge, model, gpu, keep && !model.endsWith(".pth"), status);
 			check(imp, info, name);
 			Results results = apply(bridge, imp, info, model, gpu, keys != null ? keys : defaultOutputs(info), status);
 			SwingUtilities.invokeAndWait(() -> results.show(imp));
